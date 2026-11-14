@@ -746,6 +746,20 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     refreshAllExpanded()
   }, [isActive, workspacePath, refreshAllExpanded, pauseWhenHidden])
 
+  // SSH 会话恢复连接完成：主进程此时才注册远程根，重拉目录树
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const cwd = (e as CustomEvent).detail?.cwd
+      if (!cwd || !workspacePath) return
+      if (norm(cwd) !== norm(workspacePath)) return
+      if (pauseWhenHidden && !isActiveRef.current) { fsDirtyRef.current = true; return }
+      treeCacheRef.current.delete(norm(workspacePath))
+      refreshAllExpanded()
+    }
+    window.addEventListener('remote-session-ready', handler)
+    return () => window.removeEventListener('remote-session-ready', handler)
+  }, [workspacePath, refreshAllExpanded, pauseWhenHidden])
+
   // Load CLAUDE.md (or AGENTS.md) doc tree
   const loadClaudeDocTree = useCallback(async () => {
     if (!workspacePath) { setDocTree([]); return }
@@ -1118,8 +1132,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const handlePaste = useCallback(async (destDir: string) => {
     setFileContextMenu(null)
     if (!fileClipboard) return
-    const sep = fileClipboard.path.includes('\\') ? '\\' : '/'
-    const destPath = destDir + sep + fileClipboard.name
+    const sep = destDir.includes('\\') ? '\\' : '/'
+    const destBase = destDir.replace(/[\\/]+$/, '')
+    const destPath = destBase + sep + fileClipboard.name
     let result: { error?: string }
     if (fileClipboard.operation === 'cut') {
       result = await window.api.file.move(fileClipboard.path, destPath)

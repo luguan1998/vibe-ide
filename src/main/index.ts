@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import { exec } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerPtyHandlers, cleanupTerminals, setPtyMainWindow } from './pty'
+import { registerSshHandlers, cleanupSsh } from './remote/ssh'
 import { registerAiHandlers, cleanupAiSessions, setAiMainWindow, resolveConfigDir, resolveProjectDir } from './ai'
 import { registerPlanExecuteHandlers } from './ai-plan-execute'
 import { registerRevertHandlers } from './ai-revert'
@@ -242,6 +243,7 @@ app.whenReady().then(() => {
   // Register PTY handlers after window is created
   registerPtyHandlers()
   registerBoardHandlers()
+  registerSshHandlers()
   registerAiHandlers()
   registerPlanExecuteHandlers()
   registerRevertHandlers()
@@ -667,6 +669,7 @@ app.whenReady().then(() => {
 
 function cleanupAndExit(): void {
   cleanupTerminals()
+  cleanupSsh()
   cleanupAiSessions()
   stopWatching()
   closeCodeGraph()

@@ -18,6 +18,11 @@ const EDITABLE_EXTENSIONS = new Set([
 // 引号路径: "C:\path with spaces\file.ts" 或 '/home/user/file.ts'
 // 支持行号: file.ts:10  支持行:列: file.ts:10:20
 const WINDOWS_ABS_PATH = /[A-Za-z]:[\\\/][^\s:*?"<>|\r\n]+/
+
+// 本地 Windows 绝对路径；远程 SSH 工作区是 POSIX 形式，不会命中
+export function isLocalAbsPath(p: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(p)
+}
 const UNIX_ABS_PATH = /\/[^\s:*?"<>|\r\n]+\.[a-zA-Z0-9]+/
 const RELATIVE_PATH = /(?:\.{1,2}[\\\/]|[a-zA-Z0-9_])[a-zA-Z0-9_\-.\\\/]*[a-zA-Z0-9_\-.]+/
 const QUOTED_PATH = /['"]([^'"\r\n]+?)['"]/

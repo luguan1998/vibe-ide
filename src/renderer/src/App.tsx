@@ -39,7 +39,7 @@ import { cwdStore, useGroupOrder, useEmptyGroups, orderGroups } from './cwdStore
 import type { TerminalViewHandle } from './components/TerminalView'
 import { getMainShellType, getAuxShellType } from './utils/shellPrefs'
 import { getLastNewMode } from './utils/sessionModePrefs'
-import { resolveAbsPath, toFileUrl } from './utils/filePathUtils'
+import { isLocalAbsPath, resolveAbsPath, toFileUrl } from './utils/filePathUtils'
 import type { ProgramStatus } from './programStatus'
 import tomoriHeySound from './assets/tomori-hey.mp3'
 
@@ -57,7 +57,7 @@ declare global {
     api: {
       terminal: {
         rename(id: string, newName: string): Promise<RenameTerminalResult>
-        create: (options?: { id?: string; cwd?: string; name?: string; shell?: string; initCommand?: string }) => Promise<TerminalSession>
+        create: (options?: { id?: string; cwd?: string; name?: string; shell?: string; initCommand?: string; sshConnectionId?: string }) => Promise<TerminalSession>
         getShells: () => Promise<{ value: string; label: string }[]>
         refreshEnv: () => Promise<{ success: boolean; count?: number; error?: string }>
         write: (id: string, data: string) => void
@@ -204,6 +204,15 @@ declare global {
         clear: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardOpResult>
         merge: (workspacePath: string, recordId: string) => Promise<import('@shared/types').BoardMergeResult>
         mergeAbort: (workspacePath: string) => Promise<import('@shared/types').BoardOpResult>
+      }
+      ssh: {
+        hosts: () => Promise<import('@shared/types').SshHost[]>
+        saveHost: (host: import('@shared/types').SshHostInput) => Promise<import('@shared/types').SshHost>
+        deleteHost: (id: string) => Promise<{ success: boolean }>
+        connect: (options: import('@shared/types').SshConnectOptions) => Promise<import('@shared/types').SshConnectResult>
+        disconnect: (id: string) => Promise<boolean>
+        home: (id: string) => Promise<string>
+        listDir: (id: string, path: string) => Promise<{ name: string; path: string; type: string }[]>
       }
       theme: {
         setTitleBar: (options: { color: string; symbolColor: string; backgroundColor: string }) => void
@@ -1823,6 +1832,8 @@ export default function App() {
   // OSC 标题变更回调：仅当用户未手动改过名时自动替换
   const handleOscTitleChange = useCallback(async (sessionId: string, title: string) => {
     if (manuallyRenamedRef.current.has(sessionId)) return
+    // SSH 会话名固定为主机名，不被远端 shell 的 OSC 标题（user@host: ~）覆盖
+    if (sessionsRef.current.find(s => s.id === sessionId)?.sshConnectionId) return
 
     // 去掉前缀 spinner/状态字符（CC 思考动画：✻⠐·等），保留正文
     // braille 区块 U+2800-U+28FF 覆盖所有盲文点字 spinner
@@ -2182,9 +2193,17 @@ export default function App() {
     applySessionTabPolicy(session.id)
   }, [applySessionTabPolicy])
 
-  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string, activate = true) => {
-    const session = await window.api.terminal.create({ cwd, shell, initCommand: initOverride ?? readDefaultAgent() })
-    const tab: SessionTab = { ...session, kind: 'terminal', loaded: true }
+  // SSH 终端的 shell/init 由远端决定：本地 shell 与默认 agent 命令不参与
+  const terminalCreateArgs = (cwd: string, sshConnectionId: string | undefined, shell?: string, initCommand?: string) => ({
+    cwd,
+    shell: sshConnectionId ? undefined : shell,
+    initCommand: sshConnectionId ? undefined : initCommand,
+    sshConnectionId,
+  })
+
+  const createTermSession = useCallback(async (cwd: string, shell: string = getMainShellType(), initOverride?: string, activate = true, sshConnectionId?: string, sshHostId?: string) => {
+    const session = await window.api.terminal.create(terminalCreateArgs(cwd, sshConnectionId, shell, initOverride ?? readDefaultAgent()))
+    const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, ...(sshHostId ? { sshHostId } : {}) }
     addSessionRecord(tab, null, activate)
     return session
   }, [addSessionRecord])
@@ -2197,12 +2216,9 @@ export default function App() {
     let initialDir = 'C:\\'
     try {
       const last = localStorage.getItem('vibe-ide-dirpicker-last-dir')
-      if (last) initialDir = last
-      else if (activeSessionCwd) initialDir = activeSessionCwd
-      else {
-        const recent = cwdStore.getRecentDirs()
-        if (recent.length > 0) initialDir = recent[0]
-      }
+      if (last && isLocalAbsPath(last)) initialDir = last
+      else if (activeSessionCwd && isLocalAbsPath(activeSessionCwd)) initialDir = activeSessionCwd
+      else initialDir = cwdStore.getRecentDirs().find(isLocalAbsPath) || initialDir
     } catch {}
     setDirPicker({ initialDir, shell })
   }, [activeSessionCwd])
@@ -2215,10 +2231,13 @@ export default function App() {
       : { ...session, kind: mode, loaded: true }
   ), [])
 
-  const handleNewSessionHere = useCallback(async (cwd: string, mode: SessionMode) => {
+  const handleNewSessionHere = useCallback(async (cwd: string, mode: SessionMode, sshConnectionId?: string) => {
     try {
       setIsOpening(true)
-      if (mode === 'term') {
+      if (sshConnectionId) {
+        const sshHostId = sessionsRef.current.find(s => s.sshConnectionId === sshConnectionId)?.sshHostId
+        await createTermSession(cwd, undefined, undefined, true, sshConnectionId, sshHostId)
+      } else if (mode === 'term') {
         await createTermSession(cwd)
       } else {
         const session = makeLocalSession(cwd)
@@ -2243,13 +2262,15 @@ export default function App() {
     }
   }, [createTermSession])
 
-  const handleDirPickerConfirm = useCallback(async (cwd: string, mode: SessionMode) => {
+  const handleDirPickerConfirm = useCallback(async (cwd: string, mode: SessionMode, ssh?: { connectionId: string; hostId: string; hostLabel: string }) => {
     setDirPicker(null)
-    try { localStorage.setItem('vibe-ide-dirpicker-last-dir', cwd) } catch {}
+    if (!ssh) {
+      try { localStorage.setItem('vibe-ide-dirpicker-last-dir', cwd) } catch {}
+    }
     try {
       setIsOpening(true)
       if (mode === 'term') {
-        await createTermSession(cwd, dirPicker?.shell)
+        await createTermSession(cwd, dirPicker?.shell, undefined, true, ssh?.connectionId, ssh?.hostId)
       } else {
         const session = makeLocalSession(cwd)
         addSessionRecord(makeAiSessionTab(session, mode))
@@ -2309,8 +2330,11 @@ export default function App() {
       return
     }
     try {
-      const session = await window.api.terminal.create({ cwd, shell, name, initCommand: readDefaultAgent() })
-      addSessionRecord({ ...session, kind: 'terminal', loaded: true, emoji: parentEmoji }, parentId)
+      const session = await window.api.terminal.create({
+        ...terminalCreateArgs(cwd, parent?.sshConnectionId, shell, readDefaultAgent()),
+        name,
+      })
+      addSessionRecord({ ...session, kind: 'terminal', loaded: true, emoji: parentEmoji, ...(parent?.sshHostId ? { sshHostId: parent.sshHostId } : {}) }, parentId)
     } catch (err) {
       console.error('Failed to clone terminal session:', err)
     }
@@ -2351,7 +2375,9 @@ export default function App() {
     if (!session || session.kind !== 'terminal' || !session.loaded) return
     if (splitTwins[sessionId]) return
     try {
-      const twin = await window.api.terminal.create({ cwd: session.cwd, shell: session.shell, initCommand: readDefaultAgent() })
+      const twin = await window.api.terminal.create(
+        terminalCreateArgs(session.cwd, session.sshConnectionId, session.shell, readDefaultAgent()),
+      )
       setSplitTwins(prev => ({ ...prev, [sessionId]: twin.id }))
       applySessionTabPolicy(sessionId)
     } catch (err) {
@@ -2525,11 +2551,21 @@ export default function App() {
     // 恢复出来的 Terminal tab 没有真实 PTY，加载时新建一个并替换占位 tab（透传 id 保稳定）
     if (session.kind === 'terminal') {
       try {
+        let sshConnectionId = session.sshConnectionId
+        if (!sshConnectionId && session.sshHostId) {
+          const conn = await window.api.ssh.connect({ hostId: session.sshHostId })
+          if (conn.state !== 'connected' || !conn.connectionId) {
+            console.error('Failed to reconnect SSH session:', conn.message)
+            return
+          }
+          sshConnectionId = conn.connectionId
+        }
         const real = await window.api.terminal.create({
           id: session.id,
           cwd: session.cwd,
-          shell: getMainShellType(),
-          initCommand: readDefaultAgent(),
+          shell: sshConnectionId ? undefined : getMainShellType(),
+          initCommand: sshConnectionId ? undefined : readDefaultAgent(),
+          sshConnectionId,
         })
         const realTab: SessionTab = { ...session, ...real, kind: 'terminal', loaded: true }
         setSessions(prev => {
@@ -2540,6 +2576,10 @@ export default function App() {
           return next
         })
         setActiveSessionId(prev => prev === id ? real.id : prev)
+        if (sshConnectionId) {
+          // 远程根此时才在主进程注册完成，Dir/Git 面板据此重拉
+          window.dispatchEvent(new CustomEvent('remote-session-ready', { detail: { cwd: session.cwd } }))
+        }
       } catch (err) {
         console.error('Failed to restore terminal session:', err)
       }
@@ -2576,6 +2616,16 @@ export default function App() {
   }, [])
   ensureSessionLoadedRef.current = ensureSessionLoaded
 
+  // 恢复的 SSH 会话只在用户操作面板时补建连接（终端本身仍按会话点击懒加载）
+  const ensureSshSession = useCallback(() => {
+    const s = sessionsRef.current.find(x => x.id === activeSessionIdRef.current)
+    if (s?.sshHostId && !s.loaded) void ensureSessionLoaded(s.id)
+  }, [ensureSessionLoaded])
+
+  useEffect(() => {
+    if (leftPanelView !== 'session') ensureSshSession()
+  }, [leftPanelView, ensureSshSession])
+
   // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
   // 例外：启动恢复时的 active 若是 gui，不自动加载——否则开机即读入整段
   // 会话历史并渲染 AiTab（数百 MB 内存大头）。终端只多起一个 PTY，开机即用。
@@ -2584,7 +2634,7 @@ export default function App() {
     if (!activeSessionId) return
     if (activeSessionId === bootActiveIdRef.current) {
       const s = sessionsRef.current.find(x => x.id === activeSessionId)
-      if (s && s.kind !== 'terminal') return
+      if (s && (s.kind !== 'terminal' || (s.sshHostId && !s.loaded))) return
     }
     void ensureSessionLoaded(activeSessionId)
   }, [activeSessionId, ensureSessionLoaded])
@@ -2630,8 +2680,8 @@ export default function App() {
   const handleCloneWithInit = useCallback(async (sessionId: string, cwd: string, shell: string | undefined, command: string) => {
     try {
       const session = await window.api.terminal.create({ cwd, shell, initCommand: command })
-      const parentEmoji = sessionsRef.current.find(s => s.id === sessionId)?.emoji
-      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, emoji: parentEmoji ?? resolveDefaultIcon() }
+      const parent = sessionsRef.current.find(s => s.id === sessionId)
+      const tab: SessionTab = { ...session, kind: 'terminal', loaded: true, emoji: parent?.emoji ?? resolveDefaultIcon(), ...(parent?.sshHostId ? { sshHostId: parent.sshHostId } : {}) }
       setSessions(prev => {
         const parentIndex = prev.findIndex(s => s.id === sessionId)
         if (parentIndex === -1) return [...prev, tab]
@@ -2654,6 +2704,10 @@ export default function App() {
 
   // Close a terminal session (core, no board prompt — used by finish/clear paths)
   const closeSessionCore = useCallback(async (id: string) => {
+    const closingSsh = sessions.find(s => s.id === id)?.sshConnectionId
+    if (closingSsh && !sessions.some(s => s.id !== id && s.sshConnectionId === closingSsh)) {
+      window.api.ssh.disconnect(closingSsh).catch(() => {})
+    }
     const twinId = splitTwins[id]
     cancelPipe(id)
     if (twinId) cancelPipe(twinId)
@@ -2666,7 +2720,7 @@ export default function App() {
     setSessions(prev => prev.filter(s => s.id !== id))
     // 关掉组内最后一个会话：保留空组卡（位置由 groupOrder 决定）
     const closing = sessions.find(s => s.id === id)
-    if (closing) {
+    if (closing && !closing.sshConnectionId) {
       const key = sessionGroupKey(closing)
       if (!sessions.some(s => s.id !== id && sessionGroupKey(s) === key)) cwdStore.keepEmptyGroup(key)
     }
@@ -4045,6 +4099,7 @@ export default function App() {
           onBlur={handleRightBlur}>
           <RightPanel
             workspacePath={activeSessionCwd}
+            onEnsureSession={ensureSshSession}
             activeSessionId={activeSessionId}
             onFileSelect={handleFileSelect}
             refreshKey={gitRefreshKey}

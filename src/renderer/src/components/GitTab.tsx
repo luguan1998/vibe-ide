@@ -632,25 +632,40 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
 
   // Commit
   const handleCommit = useCallback(async () => {
-    if (!commitMessage.trim()) return
+    const message = commitMessage.trim()
+    if (!message) return
     setBusy(true)
+    setError(null)
     try {
-      await window.api.git.commit({ message: commitMessage })
+      const result = await window.api.git.commit({ message })
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
       setCommitMessage('')
       await refreshStatus()
       await refreshGraph()
+    } catch (err: any) {
+      setError(err?.message || String(err))
     } finally { setBusy(false) }
   }, [commitMessage, refreshStatus, refreshGraph])
 
   // Amend — 有暂存或新信息时执行：有新信息用 -m 改写，否则 --no-edit 保留原信息
   const handleAmend = useCallback(async () => {
     setBusy(true)
+    setError(null)
     try {
       const msg = commitMessage.trim()
-      await window.api.git.amend(msg ? { message: msg } : {})
+      const result = await window.api.git.amend(msg ? { message: msg } : {})
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
       setCommitMessage('')
       await refreshStatus()
       await refreshGraph()
+    } catch (err: any) {
+      setError(err?.message || String(err))
     } finally { setBusy(false) }
   }, [commitMessage, refreshStatus, refreshGraph])
 
@@ -936,6 +951,18 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
       refreshStatus()
     }
   }, [refreshKey])
+
+  // SSH 会话恢复连接完成：主进程此时才注册远程根，重切 workspace 才能拿到真实状态
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const cwd = (e as CustomEvent).detail?.cwd
+      if (!cwd || !effectiveGitPath) return
+      if (cwd.replace(/\\/g, '/') !== effectiveGitPath.replace(/\\/g, '/')) return
+      switchGitWorkspace(effectiveGitPath)
+    }
+    window.addEventListener('remote-session-ready', handler)
+    return () => window.removeEventListener('remote-session-ready', handler)
+  }, [effectiveGitPath, switchGitWorkspace])
 
   // meta/fs 回声合并：任意时刻最多排一次，防 AI 连续改文件时 status 堆积乱序
   const statusQueuedRef = useRef(false)

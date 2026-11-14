@@ -502,6 +502,22 @@ const api = {
       ipcRenderer.invoke(IPC_CHANNELS.BOARD_MERGE_ABORT, workspacePath) as Promise<import('../shared/types').BoardOpResult>
   },
 
+  // SSH
+  ssh: {
+    hosts: () => ipcRenderer.invoke(IPC_CHANNELS.SSH_HOSTS_LIST) as Promise<import('../shared/types').SshHost[]>,
+    saveHost: (host: import('../shared/types').SshHostInput) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SSH_HOST_SAVE, host) as Promise<import('../shared/types').SshHost>,
+    deleteHost: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SSH_HOST_DELETE, id) as Promise<{ success: boolean }>,
+    connect: (options: import('../shared/types').SshConnectOptions) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SSH_CONNECT, options) as Promise<import('../shared/types').SshConnectResult>,
+    disconnect: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SSH_DISCONNECT, id) as Promise<boolean>,
+    home: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SSH_HOME, id) as Promise<string>,
+    listDir: (id: string, path: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.SSH_LIST_DIR, id, path) as Promise<{ name: string; path: string; type: string }[]>,
+  },
+
 }
 
 contextBridge.exposeInMainWorld('api', api)

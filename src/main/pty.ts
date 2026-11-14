@@ -3,7 +3,10 @@ import { execSync, execFileSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join, dirname } from 'path'
 import * as pty from 'node-pty'
+import type { ClientChannel } from 'ssh2'
 import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/types'
+import { createSshShell, getSshHostAddress } from './remote/ssh'
+import { registerRemoteRoot, resolveRemoteConnection } from './remote/roots'
 
 // node-pty 默认走系统 ConPTY，它会吞掉 1049/1000/1002/1003/1006，只透传 1004：于是 xterm 进不了
 // alternate screen、mouseTrackingMode 恒为 none → 全屏 TUI(pi 等) 的滚轮既不上报也不滚 scrollback。
@@ -32,6 +35,15 @@ interface ManagedPty {
 }
 
 const terminals = new Map<string, ManagedPty>()
+
+interface ManagedSshPty {
+  stream: ClientChannel
+  session: TerminalSession
+  cols: number
+  rows: number
+}
+
+const sshTerminals = new Map<string, ManagedSshPty>()
 let mainWindow: BrowserWindow | null = null
 
 // 窗口可能在运行期重建（macOS activate 等），快照引用会失效，
@@ -278,6 +290,65 @@ export function closeTerminalSession(id: string): boolean {
   return false
 }
 
+function shellQuote(value: string): string {
+  return "'" + value.replace(/'/g, "'\\''") + "'"
+}
+
+async function createSshTerminalSession(options: CreateTerminalOptions): Promise<TerminalSession> {
+  const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const cols = 80
+  const rows = 24
+  const stream = await createSshShell(options.sshConnectionId!, cols, rows)
+  const cwd = options.cwd || ''
+  if (cwd) registerRemoteRoot(cwd, options.sshConnectionId!)
+  const session: TerminalSession = {
+    id,
+    name: options.name || getSshHostAddress(options.sshConnectionId!) || `SSH ${sshTerminals.size + 1}`,
+    cwd,
+    shell: 'ssh',
+    sshConnectionId: options.sshConnectionId,
+    active: true,
+    createdAt: Date.now()
+  }
+  sshTerminals.set(id, { stream, session, cols, rows })
+
+  let startupDone = false
+  const send = (data: string) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.PTY_DATA, { id, data })
+    }
+  }
+
+  stream.on('data', (data: Buffer) => {
+    if (!startupDone) return
+    send(data.toString('utf8'))
+  })
+  stream.stderr.on('data', (data: Buffer) => {
+    if (!startupDone) return
+    send(data.toString('utf8'))
+  })
+  stream.on('close', () => {
+    sshTerminals.delete(id)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC_CHANNELS.PTY_EXIT, { id, exitCode: 0 })
+    }
+  })
+
+  setTimeout(() => {
+    const managed = sshTerminals.get(id)
+    if (!managed) return
+    startupDone = true
+    try {
+      if (cwd) managed.stream.write(`cd -- ${shellQuote(cwd)}\r`)
+      setTimeout(() => {
+        try { managed.stream.write('\x0c') } catch {}
+      }, 200)
+    } catch {}
+  }, 300)
+
+  return session
+}
+
 export function registerPtyHandlers(): void {
 
   // 返回本机已安装的 shell 列表
@@ -378,8 +449,11 @@ export function registerPtyHandlers(): void {
   })
 
   // Create a new terminal session
-  ipcMain.handle(IPC_CHANNELS.PTY_CREATE, (_event, options: CreateTerminalOptions) => {
+  ipcMain.handle(IPC_CHANNELS.PTY_CREATE, async (_event, options: CreateTerminalOptions) => {
     try {
+      const sshConnectionId = options?.sshConnectionId
+        || (options?.cwd ? resolveRemoteConnection(options.cwd) : undefined)
+      if (sshConnectionId) return await createSshTerminalSession({ ...options, sshConnectionId })
       return createTerminalSession(options)
     } catch (err: any) {
       console.error('Failed to create PTY:', err)
@@ -391,6 +465,11 @@ export function registerPtyHandlers(): void {
   ipcMain.on(IPC_CHANNELS.PTY_WRITE, (_event, payload: { id: string; data: string }) => {
     if (!payload || typeof payload.id !== 'string') return
     const { id, data } = payload
+    const ssh = sshTerminals.get(id)
+    if (ssh) {
+      try { ssh.stream.write(data) } catch {}
+      return
+    }
     const managed = terminals.get(id)
     if (managed) {
       try { managed.pty.write(data) } catch {}
@@ -401,6 +480,13 @@ export function registerPtyHandlers(): void {
   ipcMain.on(IPC_CHANNELS.PTY_RESIZE, (_event, payload: { id: string; cols: number; rows: number }) => {
     if (!payload || typeof payload.id !== 'string') return
     const { id, cols, rows } = payload
+    const ssh = sshTerminals.get(id)
+    if (ssh) {
+      try { ssh.stream.setWindow(rows, cols, 0, 0) } catch {}
+      ssh.cols = cols
+      ssh.rows = rows
+      return
+    }
     const managed = terminals.get(id)
     if (managed) {
       managed.pty.resize(cols, rows)
@@ -411,6 +497,12 @@ export function registerPtyHandlers(): void {
 
   // Close terminal
   ipcMain.handle(IPC_CHANNELS.PTY_CLOSE, async (_event, id: string) => {
+    const ssh = sshTerminals.get(id)
+    if (ssh) {
+      try { ssh.stream.close() } catch {}
+      sshTerminals.delete(id)
+      return true
+    }
     const managed = terminals.get(id)
     if (managed) {
       managed.pty.kill()
@@ -422,6 +514,11 @@ export function registerPtyHandlers(): void {
 
   // Rename terminal
   ipcMain.handle(IPC_CHANNELS.PTY_RENAME, (_event, id: string, newName: string) => {
+    const ssh = sshTerminals.get(id)
+    if (ssh) {
+      ssh.session.name = newName
+      return { success: true, session: ssh.session }
+    }
     const managed = terminals.get(id)
     if (managed) {
       managed.session.name = newName
@@ -438,4 +535,8 @@ export function cleanupTerminals(): void {
     managed.pty.kill()
   }
   terminals.clear()
+  for (const [_, managed] of sshTerminals) {
+    try { managed.stream.close() } catch {}
+  }
+  sshTerminals.clear()
 }

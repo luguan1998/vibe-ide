@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react'
 import { createPortal } from 'react-dom'
-import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon } from '../sessionRestore'
+import { type SessionTab, type DefaultSessionIcon, ICON_NONE, DEFAULT_SESSION_EMOJIS, sessionGroupKey, getDefaultSessionIcon, persistDefaultSessionIcon, emojiForDefaultIcon, isSshSession } from '../sessionRestore'
 import { PIXEL_MASCOTS, PIXEL_MASCOT_FIXED_COLORS, PIXEL_MASCOT_THEME_COLORS, mascotColorValue, pixelMascot } from '../pixelMascots'
 import { PixelMascot } from './PixelMascot'
 import { Zap, Coffee, Plus, Copy, Pencil, X, Check, ChevronRight, ChevronUp, ChevronDown, MessageSquarePlus, Loader2, Square, RotateCcw, Bot, Keyboard, Filter, Star, Clock, History, KanbanSquare, FolderPlus, FolderOpen, ScrollText, HelpCircle, ArrowDownToLine, GitBranch, Info, Languages, Ellipsis, Heart, NotebookPen } from 'lucide-react'
@@ -19,7 +19,7 @@ import type { ProgramStatus } from '../programStatus'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
 import { BOARD_FOCUS, requestBoardNewTodo } from './BoardView'
-import { SessionGlyph, renderKindIcon } from '../sessionIcon'
+import { SessionGlyph, SshIcon, renderKindIcon } from '../sessionIcon'
 import { PanelGitIcon, PanelDirIcon, PanelSessionsIcon } from '../panelIcons'
 import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
@@ -427,7 +427,7 @@ interface SessionPanelProps {
   pipeRunning?: Record<string, boolean>
   pipeProgress?: Record<string, { current: number; total: number }>
   onCancelPipe?: (sessionId: string) => void
-  onNewSessionHere?: (cwd: string, mode: SessionMode) => void
+  onNewSessionHere?: (cwd: string, mode: SessionMode, sshConnectionId?: string) => void
   onCloseGroupSessions?: (cwd: string) => void
   showSessionButtons?: boolean
   onToggleShowSessionButtons?: (v: boolean) => void
@@ -1085,7 +1085,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   // Track new sessions to record their cwd as recent directories
   useEffect(() => {
     for (const s of sessions) {
-      if (!prevSessionIdsRef.current.has(s.id)) {
+      if (!prevSessionIdsRef.current.has(s.id) && !s.sshConnectionId && !s.sshHostId) {
         cwdStore.addRecentDir(s.cwd)
       }
     }
@@ -1096,9 +1096,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   // worktree 会话并入其来源仓库的组：组键取 worktreeOriginalPath || cwd（sessionGroupKey）
   const groupOrder = useGroupOrder()
   const emptyGroups = useEmptyGroups()
+  // SSH 会话不进 cwd 分组：每个 SSH 会话单独一条，避免远端路径被当成工作区目录
+  const sshSessions = useMemo(() => sessions.filter(isSshSession), [sessions])
   const sessionGroups = useMemo(() => {
     const map = new Map<string, SessionTab[]>()
     for (const s of sessions) {
+      if (isSshSession(s)) continue
       const key = sessionGroupKey(s)
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(s)
@@ -1612,6 +1615,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           )}
         </div>
         <div className={`flex items-center session-item__actions ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
+          {(session.sshConnectionId || session.sshHostId) && session.cwd && (
+            <span
+              className="session-item__ssh-path shrink min-w-0 inline-flex items-center gap-0.5 px-1 h-4 rounded bg-ide-accent/10 text-ide-accent text-[10px] max-w-[110px] mr-0.5"
+              title={session.cwd}
+            >
+              <span className="truncate">{dirNameOf(session.cwd)}</span>
+            </span>
+          )}
           {pipeRunning?.[session.id] && (
             <div className="session-item__pipe flex items-center gap-0.5 mr-0.5 pl-1.5 pr-1 h-5 rounded bg-ide-accent/10 text-ide-accent shrink-0">
               <Loader2 size={11} className="session-item__pipe-spinner animate-spin" />
@@ -2214,6 +2225,15 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {/* Custom Commands */}
       <CustomCommands ref={commandsRef} onExecuteCommand={onExecuteCommand} onInitCommand={onInitCommand} onPipeCommand={onPipeCommand} />
 
+      {/* SSH sessions — 固定底部，每条一行 */}
+      {sshSessions.length > 0 && (
+        <div className="py-1 shrink-0 max-h-[45%] overflow-y-auto">
+          <div className="session-group">
+            {sshSessions.map((session) => renderSessionItem(session, { showCwd: false, outerClass: 'pl-4 pr-3 py-1 cursor-grab active:cursor-grabbing transition-colors min-h-[44px] h-auto', nameClass: 'line-clamp-2 break-all', minHeightClass: 'min-h-[44px]' }))}
+          </div>
+        </div>
+      )}
+
       </div>
 
       {/* Context Menu */}
@@ -2462,7 +2482,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           >
             <div className="grid grid-cols-7 gap-0.5">
               <button title={t('Type Icon')} className={cellCls(ov === undefined)} onClick={() => pick(undefined)}>
-                {pickSession ? renderKindIcon(pickSession.kind, pickSession.aiBackend) : null}
+                {pickSession ? (isSshSession(pickSession) ? <SshIcon size={14} /> : renderKindIcon(pickSession.kind, pickSession.aiBackend)) : null}
               </button>
               <button title={t('Blank')} className={cellCls(ov === ICON_NONE)} onClick={() => pick(ICON_NONE)}>
                 <span className="w-3.5 h-3.5 rounded-sm border border-dashed border-ide-text-muted" />
@@ -2499,7 +2519,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           <button
             className="w-full px-3 py-1.5 text-left text-sm text-ide-text hover:bg-ide-hover flex items-center gap-2"
             onClick={() => {
-              if (activeSession && onNewSessionHere) onNewSessionHere(activeSession.cwd, 'term')
+              if (activeSession && onNewSessionHere) onNewSessionHere(activeSession.cwd, 'term', activeSession.sshConnectionId)
               else onCreateSession(termType)
               setEmptyAreaMenu(null)
             }}

@@ -4,6 +4,10 @@ import { IPC_CHANNELS, GitStatusResult, GitFileStatus, GitLogEntry, GitBranch, G
 import { writeFile, unlink } from 'fs/promises'
 import { tmpdir } from 'os'
 import path, { isAbsolute, resolve as resolvePath } from 'path'
+import { posix } from 'path'
+import { getSshRelay } from './remote/ssh'
+import { resolveRemoteConnection, isRemotePath } from './remote/roots'
+import type { RelayClient } from './remote/relay-client'
 import { startWatching, updateSkipPatterns, watchGitMeta, notifyGitMeta, beginGitSelfOp, endGitSelfOp } from './watcher'
 
 let gitInstance: SimpleGit | null = null
@@ -11,9 +15,22 @@ let currentWorkspace: string = process.cwd()
 // 同路径 setWorkspace 结果缓存：左(GitTab/Dir)右两侧面板各持一个 GitTab，切会话时会对同一路径各调一次
 let workspaceInfo: { path: string; gitRoot: string; gitCommonDir: string } | null = null
 
+// 远端仓库：把 simple-git 调用透传到 relay（relay 内嵌 simple-git）
+function remoteGit(cwd: string, relay: RelayClient): SimpleGit {
+  return new Proxy({} as SimpleGit, {
+    get: (_target, prop) => {
+      if (typeof prop !== 'string') return undefined
+      return (...args: any[]) => relay.request('git.call', { cwd, method: prop, args })
+    },
+  })
+}
+
 // git 默认 core.quotePath=true，中文文件名在 status/diff 等输出里被转成 "AI\346\222\246..." 八进制转义，
 // 面板显示异常且路径与真实文件对不上，统一关闭
 function newGit(baseDir: string): SimpleGit {
+  const connectionId = resolveRemoteConnection(baseDir)
+  const relay = connectionId ? getSshRelay(connectionId) : undefined
+  if (relay) return remoteGit(baseDir, relay)
   return simpleGit(baseDir, { config: ['core.quotePath=false'] })
 }
 
@@ -133,30 +150,42 @@ export function registerGitHandlers(): void {
   // Set git workspace path — switches git instance to a new directory
   ipcMain.handle(IPC_CHANNELS.GIT_SET_WORKSPACE, async (_event, path: string) => {
     if (typeof path !== 'string' || !path) return { error: 'Invalid workspace path' }
+    const remote = isRemotePath(path)
     try {
       if (workspaceInfo && workspaceInfo.path === path) {
         // 幂等回放：不重跑 rev-parse，只确保 watcher 就位(同路径自身也是 no-op)
-        startWatching(path)
-        watchGitMeta(workspaceInfo.gitCommonDir)
+        if (!remote) {
+          startWatching(path)
+          watchGitMeta(workspaceInfo.gitCommonDir)
+        }
         return { success: true, path, gitRoot: workspaceInfo.gitRoot, gitCommonDir: workspaceInfo.gitCommonDir }
       }
-      currentWorkspace = path
-      gitInstance = newGit(currentWorkspace)
+      const probe = newGit(path)
       let gitRoot = path
-      let gitCommonDir = ''
       try {
-        const root = (await gitInstance.raw(['rev-parse', '--show-toplevel'])).trim()
+        const root = (await probe.raw(['rev-parse', '--show-toplevel'])).trim()
         if (root) gitRoot = root.replace(/\\/g, '/')
       } catch {}
+      // 子目录会话也必须在仓库根执行：git 在子目录里只统计该子目录、输出路径相对子目录，
+      // 与 GitTab 的 gitRoot + path 拼接不一致（diff 会读错文件）
+      currentWorkspace = gitRoot
+      gitInstance = gitRoot === path ? probe : newGit(gitRoot)
+      let gitCommonDir = ''
       try {
         let cd = (await gitInstance.raw(['rev-parse', '--git-common-dir'])).trim()
         if (cd) {
-          if (!isAbsolute(cd)) cd = resolvePath(currentWorkspace, cd)
+          if (remote) {
+            if (!cd.startsWith('/')) cd = posix.resolve(currentWorkspace, cd)
+          } else if (!isAbsolute(cd)) {
+            cd = resolvePath(currentWorkspace, cd)
+          }
           gitCommonDir = cd.replace(/\\/g, '/')
         }
       } catch {}
-      startWatching(path)
-      watchGitMeta(gitCommonDir)
+      if (!remote) {
+        startWatching(path)
+        watchGitMeta(gitCommonDir)
+      }
       workspaceInfo = { path, gitRoot, gitCommonDir }
       return { success: true, path: currentWorkspace, gitRoot, gitCommonDir }
     } catch (err: any) {
@@ -521,6 +550,7 @@ export function registerGitHandlers(): void {
 
   // Git apply branch changes as file modifications (no commits)
   ipcMain.handle(IPC_CHANNELS.GIT_APPLY_BRANCH, async (_event, branch: string) => {
+    if (isRemotePath(currentWorkspace)) return { error: 'Remote workspace does not support applying branch changes yet' }
     const git = getGit()
     try {
       let mergeBase = ''
@@ -570,6 +600,7 @@ export function registerGitHandlers(): void {
 
   // Retry apply after syncing index — called from "保留冲突" dialog button
   ipcMain.handle(IPC_CHANNELS.GIT_APPLY_BRANCH_RETRY, async (_event, branch: string) => {
+    if (isRemotePath(currentWorkspace)) return { error: 'Remote workspace does not support applying branch changes yet' }
     const git = getGit()
     try {
       // 同步 index 与 worktree，消除 "does not match index" 错误
@@ -667,6 +698,7 @@ export function registerGitHandlers(): void {
 
   // Git worktree path — get filesystem path for a worktree branch
   ipcMain.handle(IPC_CHANNELS.GIT_WORKTREE_PATH, async (_event, branch: string) => {
+    if (isRemotePath(currentWorkspace)) return { error: 'Remote workspace does not support worktrees yet' }
     try {
       const git = getGit()
       const worktreePath = (await listWorktreeBranches(git)).get(branch)
@@ -682,6 +714,7 @@ export function registerGitHandlers(): void {
   // cwd 是否落在某棵 linked worktree 里（图「打开分支」/ 手工开在树里的会话补身份用）
   ipcMain.handle(IPC_CHANNELS.GIT_WORKTREE_INFO, async (_event, cwd: string) => {
     if (typeof cwd !== 'string' || !cwd) return null
+    if (isRemotePath(cwd)) return null
     try {
       const g = newGit(cwd)
       const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
@@ -713,6 +746,7 @@ export function registerGitHandlers(): void {
   // Git submodules — 仅在用户点击标题栏分支名时调用；querySubmodules 内部已兜错
   ipcMain.handle(IPC_CHANNELS.GIT_SUBMODULES, async (_event, repoPath: string) => {
     if (typeof repoPath !== 'string' || !repoPath) return []
+    if (isRemotePath(repoPath)) return []
     return querySubmodules(repoPath)
   })
 
@@ -845,6 +879,7 @@ export function registerGitHandlers(): void {
 
   // Git delete worktree + branch
   ipcMain.handle(IPC_CHANNELS.GIT_DELETE_WORKTREE, async (_event, branch: string, force?: boolean) => {
+    if (isRemotePath(currentWorkspace)) return { error: 'Remote workspace does not support worktrees yet' }
     const git = getGit()
     try {
       // 1. Find worktree path
