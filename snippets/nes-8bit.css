@@ -79,69 +79,6 @@ html, body, #root {
   overflow: visible !important;
 }
 
-/* 统计徽章 — NES 凸起方块按钮（2px 粗边 + 3D inset 阴影 + 硬色块） */
-.status-badge {
-  border: 2px solid rgb(var(--ide-border)) !important;
-  box-shadow: inset -1px -1px 0 #adafbc, inset 1px 1px 0 #fff !important;
-  border-radius: 0 !important;
-  background: #fff !important;
-  clip-path: polygon(0 4px, 4px 4px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 4px), 0 calc(100% - 4px)) !important;
-}
-.status-badge__segment {
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  font-weight: 700 !important;
-  font-size: 10px !important;
-  border-radius: 0 !important;
-  min-height: 22px !important;
-  padding: 2px 10px !important;
-}
-.status-badge__segment .status-badge__icon { display: none !important; }
-/* 像素 emoji 替换 svg */
-.status-badge__segment::before { width: 14px !important; height: 14px !important; }
-.status-badge__segment--running::before {
-  content: '⚡' !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
-}
-.status-badge__segment--idle::before {
-  content: '💤' !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
-}
-.status-badge__segment--warn::before {
-  content: '❗' !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
-}
-/* running — NES 蓝 */
-.status-badge__segment--running {
-  background: rgb(var(--ide-accent)) !important;
-  color: #fff !important;
-}
-.status-badge__segment--running.is-active {
-  box-shadow: inset 2px 2px 0 rgb(0 107 179) !important;
-}
-/* idle — NES 绿（中性） */
-.status-badge__segment--idle {
-  background: rgb(var(--ide-success)) !important;
-  color: rgb(var(--ide-text)) !important;
-}
-/* warn — NES 黄（警示） */
-.status-badge__segment--warn {
-  background: rgb(var(--ide-warning)) !important;
-  color: rgb(var(--ide-text)) !important;
-}
-.status-badge__segment--warn.is-active {
-  box-shadow: inset 2px 2px 0 rgb(199 172 23) !important;
-}
-/* divider — 粗黑竖线 */
-.status-badge__divider {
-  width: 2px !important;
-  margin: 0 !important;
-  background: rgb(var(--ide-border)) !important;
-}
-
 /* 设置 / 新建按钮 — 凸起 */
 
 /* Session 分组容器 — NES 4px 粗框像素容器（直角） */

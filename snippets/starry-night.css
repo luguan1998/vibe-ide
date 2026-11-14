@@ -83,12 +83,6 @@ textarea {
   position: relative !important;
   overflow: hidden !important;
 }
-.status-badge {
-  border: 2px solid rgb(60 55 80) !important;
-  text-transform: none !important; letter-spacing: 0 !important;
-  font-size: 11px !important;
-}
-
 /* ═══════════════════════ impasto 笔触边框 ═══════════════════════ */
 /* 上下边 = 横向短笔触 (h1-h2) · 左右边 = 竖向长笔触 (v4-v8) · 双层叠加 */
 /* 横短竖长的原因：session-item 宽高比约 5:1，preserveAspectRatio="none" 下横笔触被拉伸太多 */
@@ -165,32 +159,6 @@ textarea {
 .session-group__path {
   color: rgb(var(--ide-accent)) !important;
   font-weight: 600 !important;
-}
-
-/* 状态栏图标替换：running 🖌️ 画笔 · idle 🌻 向日葵 · warn 🌙 月亮 */
-.status-badge__segment--running .status-badge__icon {
-  display: none !important;
-}
-.status-badge__segment--running::before {
-  content: '🖌️' !important;
-  font-size: 11px !important;
-  line-height: 1 !important;
-}
-.status-badge__segment--idle .status-badge__icon {
-  display: none !important;
-}
-.status-badge__segment--idle::before {
-  content: '🌻' !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
-}
-.status-badge__segment--warn .status-badge__icon {
-  display: none !important;
-}
-.status-badge__segment--warn::before {
-  content: '🌙' !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
 }
 
 /* ════════════════════════════════════════════════════
@@ -380,11 +348,6 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
 }
 .session-item--active {
   box-shadow: 0 0 18px rgba(255,195,40,0.05) !important;
-}
-
-/* 会话统计徽章 — 弱光晕 */
-.status-badge {
-  box-shadow: 0 0 6px rgba(255,195,40,0.08) !important;
 }
 
 /* ════════════════════════════════════════════════════

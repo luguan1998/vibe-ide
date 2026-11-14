@@ -75,34 +75,6 @@ html, body, #root {
   background: rgb(15 36 48) !important;
 }
 
-.status-badge {
-  border: 1px solid rgb(32 27 24 / 0.6) !important;
-  text-transform: none !important;
-  letter-spacing: 0 !important;
-  background: rgb(20 50 65) !important;
-  color: rgb(228 204 159) !important;
-}
-
-/* ── 狀態圖標替換：running 💀 骷髏 · idle 🦜 鸚鵡 · warn 💰 錢袋 ── */
-.status-badge__segment--running .status-badge__icon { display: none !important; }
-.status-badge__segment--running::before {
-  content: '💀' !important;
-  font-size: 11px !important;
-  line-height: 1 !important;
-}
-.status-badge__segment--idle .status-badge__icon { display: none !important; }
-.status-badge__segment--idle::before {
-  content: '🦜' !important;
-  font-size: 14px !important;
-  line-height: 1 !important;
-}
-.status-badge__segment--warn .status-badge__icon { display: none !important; }
-.status-badge__segment--warn::before {
-  content: '💰' !important;
-  font-size: 13px !important;
-  line-height: 1 !important;
-}
-
 /* ═══════════════ 會話項 — Klei btn-bg 不規則形狀 + 顏色翻轉 ═══════════════ */
 .session-item {
   position: relative !important;

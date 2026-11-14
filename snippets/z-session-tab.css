@@ -135,8 +135,3 @@
   color: rgb(var(--ide-text)) !important;
   font-weight: 600 !important;
 }
-
-/* status-badge 三态分隔线 — Monokai 下 0.4 看不清，0.6 平衡 */
-.status-badge__divider {
-  background: rgb(var(--ide-text-muted) / 0.6) !important;
-}

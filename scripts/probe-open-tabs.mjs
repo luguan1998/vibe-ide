@@ -100,21 +100,6 @@ async function main() {
   }
   console.log(`\n== file tabs total: rendererWS ${MB(base.rendererWS)} -> ${MB(last.rendererWS)}MB (delta ${MB(last.rendererWS - base.rendererWS)}MB), models ${last.models.count} chars=${MB(last.models.chars)}MB ==`)
 
-  // left panel: mount Dir view (second FileTab + GitTab)
-  const leftBtn = await ev(cdp, `(() => {
-    for (const btn of document.querySelectorAll('button.status-badge__segment--mode')) {
-      if (btn.title === 'Dir') { const r = btn.getBoundingClientRect(); return { x: r.x + r.width/2, y: r.y + r.height/2 } }
-    }
-    return null })()`)
-  if (leftBtn) {
-    await click(cdp, leftBtn.x, leftBtn.y)
-    await sleep(4000)
-    const afterLeft = await measure(cdp, 'left Dir panel mounted')
-    console.log(`\n== left panel delta: +${MB(afterLeft.rendererWS - last.rendererWS)}MB rendererWS ==`)
-  } else {
-    console.log('left Dir toggle button not found')
-  }
-
   cdp.close()
 }
 main().catch(e => { console.error(e); process.exit(1) })
