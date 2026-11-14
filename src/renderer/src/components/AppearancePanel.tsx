@@ -201,7 +201,7 @@ interface AppearancePanelProps {
 
 const AppearancePanel = function AppearancePanel({
   open, onClose,
-  capsuleTabs = false, onToggleCapsuleTabs,
+  capsuleTabs = true, onToggleCapsuleTabs,
   showSessionButtons = true, onToggleShowSessionButtons,
   showAppInfo = true, onToggleShowAppInfo,
   inlineDiff = false, onToggleInlineDiff,

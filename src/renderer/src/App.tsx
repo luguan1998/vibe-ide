@@ -795,7 +795,7 @@ export default function App() {
     return Math.min(0.9, Math.max(0.1, Math.round(r * 10) / 10))
   })
   const [capsuleTabs, setCapsuleTabs] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-capsule-tabs') === 'true' } catch { return false }
+    try { return localStorage.getItem('vibe-ide-capsule-tabs') !== 'false' } catch { return true }
   })
   const [showSessionButtons, setShowSessionButtons] = useState(() => {
     try { return localStorage.getItem('vibe-ide-session-buttons') !== 'false' } catch { return true }
@@ -3794,7 +3794,7 @@ export default function App() {
             onResetUiStyle={() => {
               setTerminalFontSize(14)
               setEditorFontSize(14)
-              setCapsuleTabs(false)
+              setCapsuleTabs(true)
               setShowSessionButtons(true)
               setInlineDiff(true)
               setDiffSplitRatio(0.3)

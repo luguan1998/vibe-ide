@@ -246,7 +246,7 @@ function TabBar({
   visibleTabs,
   onReorder,
   onToggleVisibility,
-  capsuleTabs = false,
+  capsuleTabs = true,
   onToggleCapsuleTabs,
   divided = false,
 }: {
@@ -397,7 +397,7 @@ function RightPanel({
   clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
   onDiffScroll,
   onHunkNav,
-  capsuleTabs = false,
+  capsuleTabs = true,
   onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile,
   onExploreNode,
