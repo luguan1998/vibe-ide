@@ -856,7 +856,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
   const [showInfoMenu, setShowInfoMenu] = useState(false)
-  const [appName, setAppName] = useState('SESSIONS')
+  const [appName, setAppName] = useState('Session')
   const [editingAppName, setEditingAppName] = useState(false)
   // 隐藏图标后标题左移 4px：px-3(12) + 4 = 16 = 快捷行 mx-2(8) + pl-2(8) 的图标左缘
   const [hideAppIcon, setHideAppIcon] = useState(true)
