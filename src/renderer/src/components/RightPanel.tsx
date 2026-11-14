@@ -246,7 +246,7 @@ function TabBar({
   visibleTabs,
   onReorder,
   onToggleVisibility,
-  capsuleTabs = true,
+  capsuleTabs = false,
   onToggleCapsuleTabs,
   divided = false,
 }: {
@@ -311,7 +311,7 @@ function TabBar({
   }, [onReorder])
 
   return (
-    <div className={`h-10 flex items-center justify-center shrink-0 px-3 right-panel__tab-bar${divided ? ' border-b border-ide-border' : ''}`} onContextMenu={handleContextMenu}>
+    <div className={`h-9 flex items-center justify-center shrink-0 px-3 right-panel__tab-bar${divided ? ' border-b border-ide-border' : ''}`} onContextMenu={handleContextMenu}>
       {capsuleTabs ? (
         <>
           <div className="flex-1" />
@@ -335,7 +335,7 @@ function TabBar({
                   ref={(el) => { if (el) (el as any).__section = section }}
                 >
                   {TAB_DEFS[section].icon}
-                  <span>{TAB_DEFS[section].label}</span>
+                  <span style={{ fontFamily: 'var(--ide-app-name-font)' }}>{TAB_DEFS[section].label}</span>
                 </button>
               )
             })}
@@ -397,7 +397,7 @@ function RightPanel({
   clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
   onDiffScroll,
   onHunkNav,
-  capsuleTabs = true,
+  capsuleTabs = false,
   onToggleCapsuleTabs,
   navigateToFilePayload, onNavigateToFile,
   onExploreNode,

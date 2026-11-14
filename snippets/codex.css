@@ -111,8 +111,9 @@ body,
 }
 
 /* App 信息行 — Codex 风格不显示应用图标，标题文字替换为 Codex（原 span 只留粗细/颜色：font-size:0 藏掉原字符，字号/字距/字体由伪元素接管）
-   字体：走 app 的 --ide-app-name-font（= Segoe UI 系，默认 Clown Code 标题同款）；
-         会话字体（默认 Consolas）的 C 是平切闭合口，不用它。var() 带兜底：老构建没有该 token 时仍生效
+   字体：固定 Segoe UI 系，不跟随 --ide-app-name-font（下面的对位实测就是按它量的，换字体字面留白会变）；
+         会话字体（默认 Consolas）的 C 是平切闭合口，不用它。同款字族 App 标题也用它
+   字重：app 标题已改 font-normal，伪元素需自己锁 600，保持 Codex 字标的原粗细
    字距：清掉继承来的 tracking-wide，那是 Consolas 时代的补偿，几何字面不需要
    对齐：C 视觉左缘对齐下方快捷行 svg 的视觉左缘（150% DPI 下截图实测）
          → 行 px-3(12) + 4.7 + 'C' 字面留白 1（Segoe UI 18px/600 实测）= 17.7px = 26.5 物理px，
@@ -125,7 +126,8 @@ body,
 .app-info > span.truncate::after {
   content: 'Codex';
   font-size: 18px;
-  font-family: var(--ide-app-name-font, 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif);
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif;
+  font-weight: 600;
   letter-spacing: normal;
 }
 
@@ -282,6 +284,10 @@ body,
   background: rgba(255 255 255 / 0.92) !important;
   color: rgb(var(--ide-text)) !important;
   box-shadow: var(--cx-shadow-1) !important;
+}
+/* tab 标签默认跟随 --ide-app-name-font（inline style，优先级高于样式表）；Codex 主题保持原 UI 字体 */
+.right-panel__tab span {
+  font-family: inherit !important;
 }
 
 /* Git 面板 */

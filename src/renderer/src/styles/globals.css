@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'YouSheBiaoTiYuan';
+  src: url('../assets/youshe-biaotiyuan.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* 须与 definitions.ts 的 vscodeDark (DEFAULT_THEME_ID) 保持一致 — 消首帧闪烁 */
   --ide-bg: 30 30 30;
@@ -23,7 +31,7 @@
   --selection-opacity: 0.3;
   --focus-outline: 0 122 204;
   --monaco-margin-bg: 30 30 30;
-  --ide-app-name-font: 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif;
+  --ide-app-name-font: 'YouSheBiaoTiYuan', 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif;
 }
 
 

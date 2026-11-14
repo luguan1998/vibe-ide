@@ -856,7 +856,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const [appVersion, setAppVersion] = useState('')
   useEffect(() => { window.api.appVersion().then(setAppVersion).catch(() => {}) }, [])
   const [showInfoMenu, setShowInfoMenu] = useState(false)
-  const [appName, setAppName] = useState('Sessions')
+  const [appName, setAppName] = useState('SESSIONS')
   const [editingAppName, setEditingAppName] = useState(false)
   // 隐藏图标后标题左移 4px：px-3(12) + 4 = 16 = 快捷行 mx-2(8) + pl-2(8) 的图标左缘
   const [hideAppIcon, setHideAppIcon] = useState(true)
@@ -1655,7 +1655,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
     <div ref={panelRef} className={`flex flex-col relative session-panel${compact ? '' : ' h-full'}`} style={{ fontFamily: 'var(--ide-session-font)' }}>
       {/* App 信息行：放在 .session-panel 内部，好让各主题既有的面板底（玻璃/贴图）自动覆盖到这一栏 */}
       {showAppInfo && (
-      <div className="app-info group/app-info relative h-10 px-3 flex items-center select-none shrink-0">
+      <div className="app-info group/app-info relative h-8 px-3 flex items-center select-none shrink-0">
         <span className={`relative w-[22px] h-[22px] mr-2 shrink-0 ${hideAppIcon ? 'hidden' : 'block'}`}>
           <span
             className="app-info__icon-bg absolute inset-0 bg-ide-accent"
@@ -1673,11 +1673,11 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               if (e.key === 'Escape') setEditingAppName(false)
             }}
-            className={`bg-ide-bg border border-ide-accent rounded px-1 text-base font-semibold tracking-wide text-ide-text outline-none min-w-0${hideAppIcon ? ' ml-1' : ''}`}
+            className={`bg-ide-bg border border-ide-accent rounded px-1 text-[18px] font-normal tracking-wide text-ide-text outline-none min-w-0${hideAppIcon ? ' ml-1' : ''}`}
             style={{ fontFamily: 'var(--ide-app-name-font)' }}
           />
         ) : (
-          <span className={`text-ide-text text-base font-semibold tracking-wide truncate${hideAppIcon ? ' ml-1' : ''}`} style={{ fontFamily: 'var(--ide-app-name-font)' }}>{appName}</span>
+          <span className={`text-ide-text text-[18px] leading-none font-normal tracking-wide truncate${hideAppIcon ? ' ml-1' : ''}`} style={{ fontFamily: 'var(--ide-app-name-font)' }}>{appName}</span>
         )}
         <button
           className={`app-info-menu w-5 h-5 ml-1 rounded flex items-center justify-center text-ide-text-muted hover:text-ide-text hover:bg-ide-hover transition-all shrink-0 ${showInfoMenu ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover/app-info:opacity-100 group-hover/app-info:pointer-events-auto'}`}
@@ -1741,7 +1741,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       {!showSessionButtons && (
         <button
           onClick={() => onToggleShowSessionButtons?.(true)}
-          className={`absolute ${showAppInfo ? 'top-10' : 'top-0'} inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer`}
+          className={`absolute ${showAppInfo ? 'top-8' : 'top-0'} inset-x-0 h-3.5 z-30 group/expand flex items-end justify-center cursor-pointer`}
           title={t('Expand')}
         >
           <span className="w-full h-2.5 flex items-center justify-center hover:bg-ide-hover/50 transition-colors">
@@ -1801,7 +1801,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
       </div>
 
       {showSessionButtons && (
-        <div className="relative h-0 z-30">
+        <div className={`relative h-0 z-30${dragGroupIndex !== null || dragSessionId !== null ? ' pointer-events-none' : ''}`}>
           <button
             onClick={() => onToggleShowSessionButtons?.(false)}
             className="absolute top-0 inset-x-0 h-3 group/collapse flex items-start justify-center cursor-pointer"
