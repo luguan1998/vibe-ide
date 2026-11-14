@@ -79,7 +79,7 @@ declare global {
         applyBranch: (branch: string) => Promise<any>
         discard: (filePath: string) => Promise<any>
         stashList: () => Promise<any>
-        stashPush: (message?: string) => Promise<any>
+        stashPush: (message?: string, filePath?: string) => Promise<any>
         stashPop: () => Promise<any>
         stashDrop: () => Promise<any>
         push: (remote?: string, branch?: string, force?: boolean) => Promise<any>

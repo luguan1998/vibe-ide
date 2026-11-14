@@ -8,7 +8,7 @@ import PrProvidersModal from './PrProvidersModal'
 import CreatePrModal from './CreatePrModal'
 import { ContextMenuItem } from './FileTab'
 import { ADD_ANNOTATION_EVENT, toRelPath } from './vibeEvents'
-import { FolderOpen, Route, Check, FileText, GitPullRequest } from 'lucide-react'
+import { FolderOpen, Route, Check, FileText, GitPullRequest, Archive } from 'lucide-react'
 import { FolderIcon } from './FileIcons'
 import { PanelGitIcon } from '../panelIcons'
 
@@ -811,6 +811,20 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     setBusy(true)
     try {
       await window.api.git.stashPush()
+      await refreshStatus()
+      await refreshStashCount()
+    } finally { setBusy(false) }
+  }, [refreshStatus, refreshStashCount])
+
+  // Stash single file
+  const handleStashFile = useCallback(async (filePath: string) => {
+    setBusy(true)
+    try {
+      const result = await window.api.git.stashPush(undefined, filePath)
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
       await refreshStatus()
       await refreshStashCount()
     } finally { setBusy(false) }
@@ -2224,6 +2238,14 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
               }}
             />
           )}
+          <ContextMenuItem
+            icon={<Archive className="ft-icon" />}
+            label={t('Stash File')}
+            onClick={() => {
+              handleStashFile(fileContextMenu.filePath)
+              setFileContextMenu(null)
+            }}
+          />
         </div>
       )}
 

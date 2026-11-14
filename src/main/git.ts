@@ -751,11 +751,15 @@ export function registerGitHandlers(): void {
   })
 
   // Git stash push
-  ipcMain.handle(IPC_CHANNELS.GIT_STASH_PUSH, async (_event, message?: string) => {
+  ipcMain.handle(IPC_CHANNELS.GIT_STASH_PUSH, async (_event, message?: string, filePath?: string) => {
     try {
       const git = getGit()
       const args = message ? ['-m', message] : []
-      await git.stash(['push', ...args])
+      if (filePath) {
+        await git.stash(['push', ...args, '-u', '--', filePath])
+      } else {
+        await git.stash(['push', ...args])
+      }
       return { success: true }
     } catch (err: any) {
       return { error: err.message }
