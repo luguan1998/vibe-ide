@@ -19,8 +19,8 @@ export function renderKindIcon(kind: SessionTab['kind'], aiBackend?: SessionTab[
   )
 }
 
-export function SshIcon({ size = 13 }: { size?: number }) {
-  return <Server size={size} className="shrink-0 text-ide-accent" />
+export function SshIcon({ size = 13, active }: { size?: number; active?: boolean }) {
+  return <Server size={size} className={`shrink-0 ${active ? 'text-ide-accent' : 'text-ide-text-muted'}`} />
 }
 
 // 行首图标状态机：scheduled > worktree > running > warn > idle（照抄 SessionPanel 原渲染结构）
@@ -42,12 +42,13 @@ export interface SessionGlyphInfo {
   blankIcon: boolean
 }
 
-export function SessionGlyph({ session, status, worktreeNav, reveal, hideEmpty, onClick, onContextMenu }: {
+export function SessionGlyph({ session, status, worktreeNav, reveal, hideEmpty, active, onClick, onContextMenu }: {
   session: SessionTab
   status: SessionIconStatus
   worktreeNav?: { worktreePath: string } | null
   reveal?: boolean
   hideEmpty?: boolean
+  active?: boolean
   onClick?: (info: SessionGlyphInfo) => void
   onContextMenu?: (e: ReactMouseEvent) => void
 }) {
@@ -68,7 +69,7 @@ export function SessionGlyph({ session, status, worktreeNav, reveal, hideEmpty, 
   const showEmojiHint = (state === 'idle' || state === 'running') && !reveal
   const isSsh = isSshSession(session)
   const idleGlyph = isSsh
-    ? <SshIcon />
+    ? <SshIcon active={active} />
     : blankIcon ? '' : (curEmoji ?? renderKindIcon(session.kind, session.aiBackend))
   const glyph = state === 'scheduled' ? '⏰'
     : state === 'worktree' ? '🌿'

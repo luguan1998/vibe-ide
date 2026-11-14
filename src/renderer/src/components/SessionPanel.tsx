@@ -1536,6 +1536,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
                 status={agentStatus[session.id]}
                 worktreeNav={sessionWorktreeNav[session.id] ?? null}
                 reveal={revealSessionId === session.id}
+                active={session.id === activeSessionId}
                 onClick={(info) => {
                   if (info.state === 'scheduled') { openSchedModal(session.id); return }
                   if (sessionEmojis.length === 0) return
@@ -1573,7 +1574,9 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
         <div className={`flex items-center session-item__actions ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
           {(session.sshConnectionId || session.sshHostId) && session.cwd && (
             <span
-              className="session-item__ssh-path shrink min-w-0 inline-flex items-center gap-0.5 px-1 h-4 rounded bg-ide-accent/10 text-ide-accent text-[10px] max-w-[110px] mr-0.5"
+              className={`session-item__ssh-path shrink min-w-0 inline-flex items-center gap-0.5 px-1 h-4 rounded text-[10px] max-w-[110px] mr-0.5 ${
+                session.id === activeSessionId ? 'bg-ide-accent/10 text-ide-accent' : 'bg-ide-border/40 text-ide-text-muted'
+              }`}
               title={session.cwd}
             >
               <span className="truncate">{dirNameOf(session.cwd)}</span>
