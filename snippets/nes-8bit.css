@@ -39,7 +39,6 @@
   --ide-font-family: 'Zpix', monospace !important;
   --ide-term-font: 'Zpix', monospace !important;
   --ide-session-font: 'Zpix', monospace !important;
-  --ide-app-name-font: 'Zpix', 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif !important;
 }
 
 html, body, #root {
