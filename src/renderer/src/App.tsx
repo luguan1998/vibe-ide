@@ -6,8 +6,6 @@ import { hasSchedTask } from './schedStore'
 import type { SessionMode } from './components/DirectoryPicker'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
 import RightPanel from './components/RightPanel'
-import GitTab from './components/GitTab'
-import FileTab from './components/FileTab'
 import DiffViewer, { type CallGraphRequest } from './components/DiffViewer'
 import { FileTabsView } from './components/FileTabsView'
 import { useFileTabs } from './utils/useFileTabs'
@@ -427,13 +425,6 @@ export default function App() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(240)
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
   const handleToggleLeftPanel = useCallback(() => setLeftPanelCollapsed(v => !v), [])
-  // 左栏三态切换：三态之下显示右栏同款 Dir/Git 面板；进过一次后保持挂载（切回会话用 display 隐藏，保留面板内部状态）
-  const [leftPanelView, setLeftPanelView] = useState<'session' | 'dir' | 'git'>('session')
-  const [leftPanelsReady, setLeftPanelsReady] = useState(false)
-  const handleLeftPanelViewChange = useCallback((view: 'session' | 'dir' | 'git') => {
-    setLeftPanelView(view)
-    if (view !== 'session') setLeftPanelsReady(true)
-  }, [])
   const [isDragging, setIsDragging] = useState(false)
   const [isDragOverEdit, setIsDragOverEdit] = useState(false)
   const [centerView, setCenterView] = useState<CenterView>('terminal')
@@ -812,9 +803,6 @@ export default function App() {
   const [showAppInfo, setShowAppInfo] = useState(() => {
     try { return localStorage.getItem('vibe-ide-app-info-row') !== 'false' } catch { return true }
   })
-  const [showStatusBadge, setShowStatusBadge] = useState(() => {
-    try { return localStorage.getItem('vibe-ide-status-badge') === '1' } catch { return false }
-  })
   const [ocrEnabled, setOcrEnabled] = useState(() => {
     try { return localStorage.getItem('vibe-ide-ocr-enabled') === '1' } catch { return false }
   })
@@ -1153,9 +1141,6 @@ export default function App() {
   React.useEffect(() => {
     try { localStorage.setItem('vibe-ide-app-info-row', String(showAppInfo)) } catch {}
   }, [showAppInfo])
-  React.useEffect(() => {
-    try { localStorage.setItem('vibe-ide-status-badge', showStatusBadge ? '1' : '0') } catch {}
-  }, [showStatusBadge])
   // Keep refs in sync for use in capture-phase keyboard handlers
   React.useEffect(() => { showHistoryRef.current = showHistory }, [showHistory])
   React.useEffect(() => { showSessionHistoryRef.current = showSessionHistory }, [showSessionHistory])
@@ -2152,11 +2137,8 @@ export default function App() {
     closeQuickOpen()
   }, [openFileView, closeQuickOpen])
 
-  const leftWorktreeNav = activeSessionId ? sessionWorktreeNav[activeSessionId] ?? null : null
   // 会话增减时让所有图重扫盘：新分支是在别的会话里长出来的，当前图的 messages 不会变
   const branchRevision = useMemo(() => sessions.length, [sessions])
-  const leftSubmoduleNav = activeSessionId ? sessionSubmoduleNav[activeSessionId] ?? null : null
-  const leftEffectiveGitPath = leftSubmoduleNav?.submodulePath || leftWorktreeNav?.worktreePath || activeSessionCwd
 
   // 本地构造 gui session 记录（不建 PTY，两者互斥省内存）
   function makeLocalSession(cwd: string, opts?: { name?: string; id?: string }): SessionTab {
@@ -2621,10 +2603,6 @@ export default function App() {
     const s = sessionsRef.current.find(x => x.id === activeSessionIdRef.current)
     if (s?.sshHostId && !s.loaded) void ensureSessionLoaded(s.id)
   }, [ensureSessionLoaded])
-
-  useEffect(() => {
-    if (leftPanelView !== 'session') ensureSshSession()
-  }, [leftPanelView, ensureSshSession])
 
   // deferred tab 经任意路径成为 active（点击 / Ctrl+方向键 / 看板）都自动加载
   // 例外：启动恢复时的 active 若是 gui，不自动加载——否则开机即读入整段
@@ -3803,8 +3781,6 @@ export default function App() {
             onToggleShowSessionButtons={setShowSessionButtons}
             showAppInfo={showAppInfo}
             onToggleShowAppInfo={setShowAppInfo}
-            showStatusBadge={showStatusBadge}
-            onToggleShowStatusBadge={setShowStatusBadge}
             terminalFontSize={terminalFontSize}
             editorFontSize={editorFontSize}
             onAdjustTerminalFontSize={(delta: number) => setTerminalFontSize(prev => Math.max(8, Math.min(30, prev + delta)))}
@@ -3840,49 +3816,6 @@ export default function App() {
             onCloseGroupSessions={handleCloseGroupSessions}
             onOpenHistoryTab={handleOpenHistoryTab}
             boardActive={boardActive}
-            panelView={leftPanelView}
-            onPanelViewChange={handleLeftPanelViewChange}
-            panelContent={leftPanelsReady ? (
-              <>
-                <div style={{ display: leftPanelView === 'git' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col">
-                  <GitTab
-                    workspacePath={activeSessionCwd}
-                    effectiveGitPath={leftEffectiveGitPath}
-                    worktreeNav={leftWorktreeNav}
-                    submoduleNav={leftSubmoduleNav}
-                    onFileSelect={handleFileSelect}
-                    refreshKey={gitRefreshKey}
-                    activeSessionId={activeSessionId}
-                    isActive={leftPanelView === 'git'}
-                    pauseWhenHidden
-                    onWorktreeNavChange={setWorktreeBrowseNav}
-                    onSubmoduleNavChange={setSessionSubmoduleNav}
-                    onDiffScroll={handleDiffScroll}
-                    onHunkNav={handleHunkNav}
-                    onNavigateToFile={handleNavigateToFile}
-                    lineHistoryPayload={lineHistoryPayload}
-                    brushActive={brushActive}
-                  />
-                </div>
-                <div style={{ display: leftPanelView === 'dir' ? 'flex' : 'none' }} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                  <FileTab
-                    workspacePath={activeSessionCwd}
-                    onOpenFileFromExplorer={handleOpenFileFromExplorer}
-                    onOpenFileAtLine={handleOpenSearchResult}
-                    onCompareWithCurrent={handleCompareWithCurrent}
-                    currentEditFilePath={currentEditFilePath}
-                    onPreviewMarkdown={handlePreviewMarkdown}
-                    onPreviewImage={handlePreviewImage}
-                    onOpenInBrowser={handleOpenFileInBrowser}
-                    navigateToFile={navigateToFilePayload}
-                    isActive={leftPanelView === 'dir'}
-                    pauseWhenHidden
-                    brushActive={brushActive}
-                    onExploreNode={(node: any) => setCallGraphFocalNode({ node, source: 'codegraph' })}
-                  />
-                </div>
-              </>
-            ) : undefined}
             onOpenRecentFile={handleOpenRecentFile}
           />
           </div>

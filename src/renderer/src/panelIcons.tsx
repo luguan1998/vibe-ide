@@ -1,5 +1,3 @@
-import { MessagesSquare } from 'lucide-react'
-
 export function PanelGitIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0.5" strokeLinejoin="round" paintOrder="stroke" className={className}>
@@ -15,8 +13,4 @@ export function PanelDirIcon({ className }: { className?: string }) {
       <line x1="6" y1="12" x2="18" y2="12" />
     </svg>
   )
-}
-
-export function PanelSessionsIcon({ className }: { className?: string }) {
-  return <MessagesSquare className={className} />
 }
