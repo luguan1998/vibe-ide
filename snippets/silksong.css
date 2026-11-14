@@ -23,6 +23,8 @@
   /* ── 背景图（第一章苔藓洞窟，已裁掉右下角水印）──
      alpha 越小越透：卡片 / 面板 / 会话栏 / 输入框各一档 */
   --app-bg-image: url('assets/silksong-moss-bg.jpg');
+  /* 终端透明开关：TerminalView 只认这个变量，有值即走透明分支（图由 html 全屏层提供） */
+  --terminal-bg-image: none;
   --app-bg-dim: 0.36;
   --app-bg-alpha: 0.42;
   --app-bg-center-alpha: 0.36;
@@ -50,6 +52,11 @@
   --selection-opacity: 0.30 !important;
   --monaco-margin-bg: 8 13 9 !important;
   --focus-outline: 126 168 88 !important;
+
+  /* Sitka x-height 比 Palatino 小一档，密排列表（git 文件 / 文件树）字号补 +1px */
+  --ft-fname-size: 15px;
+  --git-fname-size: 14px;
+  --git-fdir-size: 13px;
 }
 
 /* ════════════════════════════════════════════════════
@@ -65,8 +72,8 @@ html, body, #root {
   background-position: center, center, center 48% !important;
   background-repeat: no-repeat, no-repeat, no-repeat !important;
   background-attachment: fixed, fixed, fixed !important;
-  font-family: 'Cormorant Garamond', 'EB Garamond', 'Palatino Linotype', 'Book Antiqua',
-    Georgia, 'Noto Serif SC', 'Noto Serif CJK SC', SimSun, serif !important;
+  font-family: 'Sitka Text', 'Palatino Linotype', 'Book Antiqua', Georgia,
+    'Noto Serif SC', 'Noto Serif CJK SC', SimSun, serif !important;
 }
 #root > div {
   background-color: transparent !important;
@@ -262,7 +269,7 @@ input, select, textarea {
     0 0 30px rgb(var(--sk-moss) / 0.05) !important;
 }
 .term-view__canvas {
-  background-color: rgb(6 5 5 / 0.55) !important;
+  background-color: transparent !important;
 }
 .xterm .xterm-viewport,
 .xterm .xterm-screen,
@@ -305,7 +312,7 @@ input, select, textarea {
     url('assets/silksong-corner-tr.svg'),
     url('assets/silksong-corner-bl.svg'),
     url('assets/silksong-corner-br.svg') !important;
-  background-position: left top, right top, left bottom, right bottom !important;
+  background-position: left -6px, right -6px, left bottom, right bottom !important;
   background-repeat: no-repeat !important;
   background-size: 40px 40px !important;
 }
@@ -324,19 +331,22 @@ input, select, textarea {
     inset 0 0 0 1px rgb(var(--sk-ivory) / 0.16),
     0 0 12px rgb(var(--sk-moss) / 0.18) !important;
 }
-
-/* ── 文件树 ── */
-.file-tab__header {
+/* 右栏各 tab 顶栏：去亚克力底，露出内框发丝线与四角藤蔓（含无 BEM 类的 NGA 页顶栏） */
+.right-panel__content .acrylic-titlebar-clean {
   background-color: transparent !important;
-  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
 }
+
+/* ── 文件树 ── */
 .file-tab__section-header {
   background-color: rgb(var(--ide-bg) / 0.22) !important;
   color: rgb(var(--sk-ivory) / 0.62) !important;
   border-bottom: 1px solid rgb(var(--sk-ivory) / 0.08) !important;
-  letter-spacing: 0.12em !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
 }
 .file-tab__section {
   border-top: 1px solid rgb(var(--sk-ivory) / 0.08) !important;
@@ -365,12 +375,6 @@ input, select, textarea {
 }
 
 /* ── Git 三区语义：苔绿 / 琥珀金 / 石色 ── */
-.git-tab__header {
-  background-color: transparent !important;
-  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
 .git-tab__branch-name {
   color: rgb(var(--sk-moss-hi)) !important;
   font-weight: 600 !important;
@@ -383,7 +387,8 @@ input, select, textarea {
 .git-tab__section:nth-child(3) { border-left: 2px solid rgb(var(--ide-text-muted) / 0.7); }
 .git-tab__section-header {
   color: rgb(var(--sk-ivory) / 0.55) !important;
-  letter-spacing: 0.12em !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
 }
 .git-tab__file-item {
@@ -563,8 +568,8 @@ input, select, textarea {
    ════════════════════════════════════════════════════ */
 .md-preview,
 .ai-tab__user-bubble {
-  font-family: 'Cormorant Garamond', 'EB Garamond', 'Palatino Linotype', 'Book Antiqua',
-    Georgia, 'Noto Serif SC', 'Noto Serif CJK SC', SimSun, serif !important;
+  font-family: 'Sitka Text', 'Palatino Linotype', 'Book Antiqua', Georgia,
+    'Noto Serif SC', 'Noto Serif CJK SC', SimSun, serif !important;
 }
 .md-preview h1,
 .md-preview h2,
