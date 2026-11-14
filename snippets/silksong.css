@@ -1,0 +1,707 @@
+/*
+  丝之歌 · 苔藓区 — 苔绿 + 象牙丝线 + 荆棘角饰
+  设计语言（对照第一章苔藓洞窟 / 对白框 / 任务面板）：
+    · 苔藓洞窟实拍图做底（压暗后透出绿光），四周暗角收拢
+    · 象牙白发丝级装饰线，转折处菱形徽记（金刚石扣）
+    · 右栏整卡为「任务面板」式细框，四角荆棘藤蔓（assets 内联 SVG）
+    · 选中态 = 苔绿晕染，正文象牙白；类别用琥珀金 / 石绿
+    · 衬线标题与小字距大写标签，AI 输入框为对白盒
+  参考：https://www.gameui.net/games/14243
+  依赖：assets/silksong-moss-bg.jpg、silksong-corner-{tl,tr,bl,br}.svg、silksong-flourish.svg
+  换色改 --sk-* 令牌；背景压暗改 --app-bg-dim，通透度改 --app-bg-alpha / -center-alpha / -wash / -text-alpha（越小越透）
+  覆盖主题变量必须 R G B 空格分隔并带 !important
+*/
+
+:root {
+  --sk-ivory: 233 237 221;
+  --sk-moss: 126 168 88;
+  --sk-moss-hi: 158 196 116;
+  --sk-gold: 205 168 86;
+  --sk-sage: 166 190 138;
+  --sk-veil: 9 15 11;
+
+  /* ── 背景图（第一章苔藓洞窟，已裁掉右下角水印）──
+     alpha 越小越透：卡片 / 面板 / 会话栏 / 输入框各一档 */
+  --app-bg-image: url('assets/silksong-moss-bg.jpg');
+  --app-bg-dim: 0.36;
+  --app-bg-alpha: 0.42;
+  --app-bg-center-alpha: 0.36;
+  --app-bg-wash: 0.26;
+  --app-bg-text-alpha: 0.62;
+
+  /* ── 主题色 ── */
+  --ide-bg: 6 10 7 !important;
+  --ide-sidebar: 9 16 11 !important;
+  --ide-panel: 13 22 15 !important;
+  --ide-border: 48 64 46 !important;
+  --ide-text: 232 236 221 !important;
+  --ide-text-muted: 138 150 128 !important;
+  --ide-accent: 126 168 88 !important;
+  --ide-accent-hover: 158 196 116 !important;
+  --ide-success: 142 180 110 !important;
+  --ide-danger: 190 84 70 !important;
+  --ide-warning: 205 168 86 !important;
+  --ide-hover: 22 34 24 !important;
+  --ide-active: 32 50 34 !important;
+  --scrollbar-track: transparent !important;
+  --scrollbar-thumb: 66 88 62 !important;
+  --scrollbar-thumb-hover: 140 170 120 !important;
+  --selection-bg: 126 168 88 !important;
+  --selection-opacity: 0.30 !important;
+  --monaco-margin-bg: 8 13 9 !important;
+  --focus-outline: 126 168 88 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   全局 — 苔绿底 · 暗角 · 衬线
+   ════════════════════════════════════════════════════ */
+html, body, #root {
+  background-color: #050806 !important;
+  background-image:
+    linear-gradient(rgb(4 8 6 / var(--app-bg-dim)), rgb(4 8 6 / var(--app-bg-dim))),
+    linear-gradient(180deg, rgb(5 8 6 / 0.30) 0%, transparent 32%, transparent 68%, rgb(5 8 6 / 0.48) 100%),
+    var(--app-bg-image) !important;
+  background-size: 100% 100%, 100% 100%, cover !important;
+  background-position: center, center, center 48% !important;
+  background-repeat: no-repeat, no-repeat, no-repeat !important;
+  background-attachment: fixed, fixed, fixed !important;
+  font-family: 'Cormorant Garamond', 'EB Garamond', 'Palatino Linotype', 'Book Antiqua',
+    Georgia, 'Noto Serif SC', 'Noto Serif CJK SC', SimSun, serif !important;
+}
+#root > div {
+  background-color: transparent !important;
+}
+
+/* 带 bg-ide-* 类的卡片统一半透；标题栏保持实底（原生窗控 overlay 按它取色） */
+body .bg-ide-bg {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group) {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
+}
+body .bg-ide-panel {
+  background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
+}
+
+/* 暗角：四周压暗，右侧留出苔藓洞窟的一线天光 */
+body::before {
+  content: '' !important;
+  position: fixed !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  z-index: 9999 !important;
+  background: radial-gradient(ellipse at center, transparent 62%, rgb(0 0 0 / 0.16) 86%, rgb(0 0 0 / 0.40) 100%) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   标题栏 — 发丝分界 + 中轴花饰
+   （保持实色 background-color：原生窗控 overlay 按它取色）
+   ════════════════════════════════════════════════════ */
+.titlebar-drag {
+  position: relative !important;
+  z-index: 10 !important;
+  background-color: rgb(var(--ide-sidebar)) !important;
+  border-bottom: none !important;
+  background-image: none !important;
+}
+/* 中轴花饰：下压到分界线上，下缘探出标题栏、盖住中栏顶边 */
+.titlebar-drag::before {
+  content: '' !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 9px !important;
+  width: 260px !important;
+  height: 35px !important;
+  transform: translateX(-50%) !important;
+  background: url('assets/silksong-flourish.svg') center / 100% 100% no-repeat !important;
+  pointer-events: none !important;
+}
+.app__main {
+  border-top-color: rgb(var(--sk-ivory) / 0.12) !important;
+}
+
+/* 小圆角：细线风格收成近乎直角 */
+.file-tab__header,
+.file-tab__section,
+.file-tab__section-header,
+.file-tree-item,
+.git-tab__header,
+.git-tab__section,
+.git-tab__section-header,
+.git-tab__file-item,
+.git-tab__commit-area,
+.git-tab__commit-input,
+.git-tab__commit-btn,
+.right-panel__tab-bar,
+.right-panel__tab,
+input, select, textarea {
+  border-radius: 3px !important;
+}
+
+/* ════════════════════════════════════════════════════
+   会话面板 — 半透苔帐 · 苔绿晕染选中
+   ════════════════════════════════════════════════════ */
+.session-panel,
+.session-panel__list-wrapper {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-wash)) !important;
+  border-color: rgb(var(--sk-ivory) / 0.10) !important;
+  box-shadow: none !important;
+}
+.session-panel {
+  border-right: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+}
+
+.session-group .session-item {
+  background-color: rgb(var(--ide-bg) / 0.40) !important;
+  border-radius: 3px !important;
+}
+.session-group .session-item:hover {
+  background-color: rgb(var(--ide-hover) / 0.85) !important;
+}
+
+/* 选中行：左缘苔绿晕染，右端归黑 */
+.session-item--active,
+.session-group .session-item--active {
+  background-color: transparent !important;
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--sk-moss) / 0.40) 0%,
+    rgb(var(--sk-moss) / 0.14) 48%,
+    rgb(var(--sk-moss) / 0.03) 82%,
+    transparent 100%
+  ) !important;
+  border-left-color: rgb(var(--sk-moss-hi)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--sk-moss) / 0.26),
+    0 0 18px rgb(var(--sk-moss) / 0.12) !important;
+}
+.session-item--active:hover,
+.session-group .session-item--active:hover {
+  background-color: transparent !important;
+}
+.session-item--active .session-item__name,
+.session-group .session-item--active .session-item__name {
+  color: rgb(var(--sk-ivory)) !important;
+  font-weight: 600 !important;
+}
+.session-item--active .session-item__cwd,
+.session-item--active .session-item__cwd span,
+.session-group .session-item--active .session-item__cwd,
+.session-group .session-item--active .session-item__cwd span {
+  color: rgb(var(--sk-ivory) / 0.55) !important;
+  opacity: 1 !important;
+}
+.session-item--active .session-item__actions button,
+.session-group .session-item--active .session-item__actions button {
+  color: rgb(var(--sk-ivory) / 0.72) !important;
+}
+.session-item--active .session-item__actions button:hover,
+.session-group .session-item--active .session-item__actions button:hover {
+  background-color: rgb(var(--sk-ivory) / 0.12) !important;
+  color: rgb(var(--sk-ivory)) !important;
+}
+.session-item--active .session-item__worktree {
+  background-color: rgb(var(--sk-ivory) / 0.10) !important;
+  color: rgb(var(--sk-ivory) / 0.80) !important;
+}
+/* 选中行波浪字：象牙亮线里透一道苔绿 */
+.session-item--active .animate-text-wave {
+  background-image: linear-gradient(
+    90deg,
+    rgb(var(--sk-ivory)) 0%,
+    rgb(var(--sk-ivory)) 40%,
+    rgb(var(--sk-moss-hi)) 50%,
+    rgb(var(--sk-ivory)) 60%,
+    rgb(var(--sk-ivory)) 100%
+  ) !important;
+}
+
+/* 运行中（未选中）：琥珀金微光 */
+.session-item--running:not(.session-item--active) {
+  border-left-color: rgb(var(--sk-gold) / 0.75) !important;
+  background-color: rgb(var(--sk-gold) / 0.05) !important;
+  box-shadow: none !important;
+}
+.session-item--running:not(.session-item--active) .session-item__name {
+  color: rgb(var(--sk-gold)) !important;
+}
+.session-group .session-item--running:not(.session-item--active) {
+  background-color: rgb(var(--sk-gold) / 0.06) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--sk-gold) / 0.12) !important;
+}
+
+/* 警告：锈红 */
+.session-item--warn:not(.session-item--active) {
+  border-left-color: rgb(var(--ide-danger) / 0.8) !important;
+}
+.session-item--warn:not(.session-item--active) .session-item__name {
+  color: rgb(var(--ide-danger)) !important;
+}
+
+/* 组头：小字距衬线，像地图上的区域名 */
+.session-group__header {
+  font-family: inherit !important;
+}
+.session-group__path {
+  color: rgb(var(--sk-ivory) / 0.88) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* ════════════════════════════════════════════════════
+   中栏 — 半透织网底 · 发丝边
+   ════════════════════════════════════════════════════ */
+.center-panel {
+  background: transparent !important;
+}
+.center-card {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha)) !important;
+  border-color: rgb(var(--sk-ivory) / 0.12) !important;
+  box-shadow:
+    inset 0 0 60px rgb(0 0 0 / 0.45),
+    0 0 30px rgb(var(--sk-moss) / 0.05) !important;
+}
+.term-view__canvas {
+  background-color: rgb(6 5 5 / 0.55) !important;
+}
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+.term-view__header {
+  background-color: rgb(var(--ide-sidebar) / 0.92) !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
+}
+.term-view__search {
+  background-color: rgb(var(--ide-bg)) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.16) !important;
+  color: rgb(var(--sk-ivory)) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   右栏 — 任务面板：细框 + 四角荆棘藤蔓
+   ════════════════════════════════════════════════════ */
+.right-panel__content {
+  isolation: isolate !important;
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha)) !important;
+  border-color: rgb(var(--sk-ivory) / 0.13) !important;
+  box-shadow:
+    inset 0 0 45px rgb(0 0 0 / 0.5),
+    0 0 26px rgb(var(--sk-moss) / 0.06) !important;
+}
+/* 内框：发丝线 + 四角藤蔓（9 层 background 不占布局、不吃事件） */
+.right-panel__content::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: 5px !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+  border-radius: 3px !important;
+  background-image:
+    url('assets/silksong-corner-tl.svg'),
+    url('assets/silksong-corner-tr.svg'),
+    url('assets/silksong-corner-bl.svg'),
+    url('assets/silksong-corner-br.svg') !important;
+  background-position: left top, right top, left bottom, right bottom !important;
+  background-repeat: no-repeat !important;
+  background-size: 40px 40px !important;
+}
+
+.right-panel__tab-bar {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+}
+.right-panel__tab {
+  letter-spacing: 0.06em !important;
+}
+.right-panel__tab--active {
+  background-color: rgb(var(--sk-ivory) / 0.07) !important;
+  color: rgb(var(--sk-ivory)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--sk-ivory) / 0.16),
+    0 0 12px rgb(var(--sk-moss) / 0.18) !important;
+}
+
+/* ── 文件树 ── */
+.file-tab__header {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.file-tab__section-header {
+  background-color: rgb(var(--ide-bg) / 0.22) !important;
+  color: rgb(var(--sk-ivory) / 0.62) !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.08) !important;
+  letter-spacing: 0.12em !important;
+}
+.file-tab__section {
+  border-top: 1px solid rgb(var(--sk-ivory) / 0.08) !important;
+}
+.file-tree-item {
+  border-radius: 0 !important;
+}
+.file-tree-item:hover {
+  background-color: rgb(var(--sk-ivory) / 0.04) !important;
+}
+.file-tree-item--active {
+  background-color: transparent !important;
+  background-image: linear-gradient(90deg, rgb(var(--sk-moss) / 0.24), transparent 72%) !important;
+  border-left: 2px solid rgb(var(--sk-moss-hi)) !important;
+}
+.file-tree-item--active .file-tree-item__name {
+  color: rgb(var(--sk-ivory)) !important;
+  font-weight: 600 !important;
+}
+.file-tree-item--folder > .file-tree-item__name {
+  color: rgb(var(--sk-ivory) / 0.95) !important;
+  font-weight: 600 !important;
+}
+.file-tree-item--file > .file-tree-item__name {
+  color: rgb(var(--sk-ivory) / 0.78) !important;
+}
+
+/* ── Git 三区语义：苔绿 / 琥珀金 / 石色 ── */
+.git-tab__header {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.git-tab__branch-name {
+  color: rgb(var(--sk-moss-hi)) !important;
+  font-weight: 600 !important;
+}
+.git-tab__section {
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.08) !important;
+}
+.git-tab__section:nth-child(1) { border-left: 2px solid rgb(var(--sk-sage)); }
+.git-tab__section:nth-child(2) { border-left: 2px solid rgb(var(--sk-gold)); }
+.git-tab__section:nth-child(3) { border-left: 2px solid rgb(var(--ide-text-muted) / 0.7); }
+.git-tab__section-header {
+  color: rgb(var(--sk-ivory) / 0.55) !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+}
+.git-tab__file-item {
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.05) !important;
+}
+.git-tab__file-item:hover {
+  background-color: rgb(var(--sk-ivory) / 0.05) !important;
+}
+.git-tab__file-item[class*="bg-ide-accent/10"] {
+  background-color: rgb(var(--sk-moss) / 0.14) !important;
+}
+.git-tab__commit-area {
+  background-color: transparent !important;
+  border-top: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+}
+.git-tab__commit-input {
+  background-color: rgb(var(--ide-bg) / 0.72) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.14) !important;
+  color: rgb(var(--sk-ivory)) !important;
+}
+.git-tab__commit-input:focus-visible {
+  border-color: rgb(var(--sk-moss) / 0.75) !important;
+  box-shadow: 0 0 0 1px rgb(var(--sk-moss) / 0.30) !important;
+}
+
+/* 主行动按钮：苔绿蜡印；次要按钮：象牙细线 */
+.git-tab__commit-btn,
+.aux-tab__launch-btn {
+  background-image: none !important;
+  background-color: rgb(var(--sk-moss)) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.20) !important;
+  border-radius: 3px !important;
+  color: rgb(250 244 234) !important;
+  letter-spacing: 0.10em !important;
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.35),
+    0 0 16px rgb(var(--sk-moss) / 0.25) !important;
+}
+.git-tab__commit-btn:hover,
+.aux-tab__launch-btn:hover {
+  background-color: rgb(var(--sk-moss-hi)) !important;
+  color: rgb(255 250 242) !important;
+  transform: none !important;
+}
+.git-tab__push-group button,
+.git-tab__stash-btn,
+.git-tab__amend-btn {
+  background-image: none !important;
+  background-color: transparent !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.16) !important;
+  border-radius: 3px !important;
+  color: rgb(var(--sk-ivory) / 0.82) !important;
+  letter-spacing: 0.06em !important;
+}
+.git-tab__push-group button:hover,
+.git-tab__stash-btn:hover,
+.git-tab__amend-btn:hover {
+  border-color: rgb(var(--sk-moss) / 0.65) !important;
+  color: rgb(var(--sk-ivory)) !important;
+}
+.git-tab__commit-btn:disabled,
+.git-tab__push-group button:disabled,
+.git-tab__stash-btn:disabled,
+.git-tab__amend-btn:disabled {
+  box-shadow: none !important;
+  opacity: 0.4 !important;
+}
+.aux-tab__launch-btn .text-ide-text {
+  color: rgb(250 244 234) !important;
+}
+.aux-tab__launch-btn [class*="text-ide-text-muted"] {
+  color: rgb(250 244 234) !important;
+  opacity: 0.7 !important;
+}
+
+/* ════════════════════════════════════════════════════
+   AI 对话 — 对白盒
+   ════════════════════════════════════════════════════ */
+.ai-tab {
+  background-color: transparent !important;
+}
+.ai-tab__header {
+  background-color: transparent !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+}
+
+/* 输入框：黑曜石对白盒 + 底部菱形金扣 */
+.ai-tab__input-pill {
+  position: relative !important;
+  background-color: rgb(var(--sk-veil) / var(--app-bg-text-alpha)) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.16) !important;
+  border-radius: 5px !important;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.55),
+    0 10px 30px rgb(0 0 0 / 0.35),
+    inset 0 0 26px rgb(var(--sk-moss) / 0.08) !important;
+}
+.ai-tab__input-pill:focus-within {
+  border-color: rgb(var(--sk-ivory) / 0.34) !important;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.55),
+    0 10px 30px rgb(0 0 0 / 0.35),
+    0 0 20px rgb(var(--sk-moss) / 0.16),
+    inset 0 0 26px rgb(var(--sk-moss) / 0.10) !important;
+}
+.ai-tab__input-pill::after {
+  content: '' !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: -3.5px !important;
+  width: 6px !important;
+  height: 6px !important;
+  transform: translateX(-50%) rotate(45deg) !important;
+  background-color: rgb(var(--sk-veil)) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.30) !important;
+  pointer-events: none !important;
+}
+.ai-tab__textarea::placeholder {
+  color: rgb(var(--ide-text-muted) / 0.85) !important;
+  font-style: italic !important;
+}
+.ai-tab__input-toolbar {
+  border-top-color: rgb(var(--sk-ivory) / 0.08) !important;
+}
+
+/* 发送 = 苔绿蜡印；停止 = 象牙描边 */
+.ai-tab__send-btn {
+  background-color: rgb(var(--sk-moss)) !important;
+  color: rgb(250 244 234) !important;
+  border-radius: 3px !important;
+  box-shadow:
+    0 0 14px rgb(var(--sk-moss) / 0.35),
+    inset 0 0 0 1px rgb(250 244 234 / 0.15) !important;
+}
+.ai-tab__send-btn:hover {
+  background-color: rgb(var(--sk-moss-hi)) !important;
+}
+.ai-tab__stop-btn {
+  border-radius: 3px !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--sk-ivory) / 0.42) !important;
+}
+
+/* 用户气泡：苔绿织物 */
+.ai-tab__user-bubble {
+  background-color: rgb(var(--sk-moss) / 0.10) !important;
+  background-image: linear-gradient(180deg, rgb(var(--sk-moss) / 0.18), rgb(var(--sk-moss) / 0.05)) !important;
+  border: 1px solid rgb(var(--sk-moss) / 0.34) !important;
+  border-radius: 4px !important;
+  color: rgb(var(--sk-ivory)) !important;
+  box-shadow: inset 0 0 18px rgb(0 0 0 / 0.28) !important;
+}
+
+/* 预置提示词：细线小牌 */
+.ai-tab__example-btn {
+  background-color: transparent !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.16) !important;
+  border-radius: 3px !important;
+  color: rgb(var(--sk-ivory) / 0.66) !important;
+}
+.ai-tab__example-btn:hover {
+  background-color: rgb(var(--sk-moss) / 0.10) !important;
+  border-color: rgb(var(--sk-moss) / 0.60) !important;
+  color: rgb(var(--sk-ivory)) !important;
+  box-shadow: 0 0 12px rgb(var(--sk-moss) / 0.15) !important;
+}
+
+/* 忙碌：苔绿纺锤 + 象牙提示 */
+.ai-tab__busy .animate-spin-snowflake {
+  color: rgb(var(--sk-moss-hi)) !important;
+}
+.ai-tab__busy-status {
+  color: rgb(var(--sk-ivory) / 0.70) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   Markdown — 象牙手稿
+   ════════════════════════════════════════════════════ */
+.md-preview,
+.ai-tab__user-bubble {
+  font-family: 'Cormorant Garamond', 'EB Garamond', 'Palatino Linotype', 'Book Antiqua',
+    Georgia, 'Noto Serif SC', 'Noto Serif CJK SC', SimSun, serif !important;
+}
+.md-preview h1,
+.md-preview h2,
+.md-preview h3,
+.md-preview h4,
+.md-preview h5,
+.md-preview h6 {
+  font-family: inherit !important;
+}
+/* h1 下压一条中轴花饰，作为章节的分界 */
+.md-preview h1 {
+  color: rgb(var(--sk-ivory)) !important;
+  border-bottom: none !important;
+  padding-bottom: 26px !important;
+  background: url('assets/silksong-flourish.svg') center calc(100% - 4px) / 225px 30px no-repeat !important;
+}
+.md-preview h2 {
+  color: rgb(var(--sk-ivory) / 0.94) !important;
+  border-bottom: 1px solid rgb(var(--sk-ivory) / 0.18) !important;
+}
+.md-preview h3 { color: rgb(var(--sk-gold)) !important; }
+.md-preview h4 { color: rgb(var(--sk-sage)) !important; }
+.md-preview h5 { color: rgb(var(--sk-ivory) / 0.72) !important; }
+.md-preview h6 { color: rgb(var(--sk-ivory) / 0.55) !important; }
+
+.md-preview a {
+  color: rgb(var(--sk-moss-hi)) !important;
+  text-decoration-color: rgb(var(--sk-moss-hi) / 0.45) !important;
+}
+.md-preview a:hover {
+  color: rgb(var(--sk-gold)) !important;
+  text-decoration-color: rgb(var(--sk-gold) / 0.60) !important;
+}
+.md-preview strong { color: rgb(var(--sk-gold)) !important; }
+.md-preview em { color: rgb(var(--sk-sage)) !important; }
+.md-preview del { color: rgb(var(--sk-ivory) / 0.38) !important; }
+
+.md-preview li::marker { color: rgb(var(--sk-gold) / 0.85) !important; }
+.md-preview li li::marker { color: rgb(var(--sk-sage) / 0.85) !important; }
+.md-preview li li li::marker { color: rgb(var(--sk-ivory) / 0.55) !important; }
+
+.md-preview code {
+  background-color: rgb(var(--sk-ivory) / 0.06) !important;
+  color: rgb(var(--sk-gold)) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+}
+.md-code-block {
+  border: 1px solid rgb(var(--sk-ivory) / 0.12) !important;
+  background-color: rgb(8 6 6) !important;
+  box-shadow: inset 0 0 22px rgb(0 0 0 / 0.55) !important;
+}
+.md-code-block pre {
+  background: transparent !important;
+  padding: 1em !important;
+}
+.md-code-block code,
+.md-code-block code * {
+  background: none !important;
+  border: none !important;
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace !important;
+}
+.md-code-lang {
+  background-color: rgb(var(--sk-moss) / 0.18) !important;
+  color: rgb(var(--sk-ivory) / 0.78) !important;
+  border: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-radius: 0 0 0 4px !important;
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace !important;
+}
+.md-preview blockquote {
+  border-left: 2px solid rgb(var(--sk-moss)) !important;
+  background-color: rgb(var(--sk-moss) / 0.06) !important;
+  color: rgb(var(--sk-ivory) / 0.86) !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+.md-preview thead { background-color: rgb(var(--sk-ivory) / 0.05) !important; }
+.md-preview th {
+  color: rgb(var(--sk-ivory)) !important;
+  border-color: rgb(var(--sk-ivory) / 0.16) !important;
+}
+.md-preview td { border-color: rgb(var(--sk-ivory) / 0.10) !important; }
+.md-preview tbody tr:hover { background-color: rgb(var(--sk-ivory) / 0.04) !important; }
+.md-preview hr { border-top-color: rgb(var(--sk-ivory) / 0.16) !important; }
+.md-preview img {
+  border: 1px solid rgb(var(--sk-ivory) / 0.14) !important;
+  border-radius: 2px !important;
+}
+.md-preview input[type="checkbox"] { accent-color: rgb(var(--sk-moss)); }
+.md-search-match { background-color: rgb(var(--sk-gold) / 0.28) !important; }
+.md-search-match-current { background-color: rgb(var(--sk-gold) / 0.45) !important; }
+
+/* 工具调用与内联 diff 保持等宽 */
+.ai-tab__tool-toggle,
+.ai-tab__tool-detail-panel,
+.ai-tab__inline-diff,
+.ai-tab__markdown-raw {
+  font-family: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace !important;
+}
+
+/* ════════════════════════════════════════════════════
+   滚动条 — 发丝滑轨
+   ════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--scrollbar-thumb) / 0.75) !important;
+  border-radius: 0 !important;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgb(var(--sk-moss) / 0.8) !important; }
+::-webkit-scrollbar-corner { background: transparent !important; }
+
+/* xterm 6.x 自绘滚动条（原生伪元素无效） */
+.xterm .xterm-viewport::-webkit-scrollbar { display: none !important; }
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
+  background: rgb(var(--scrollbar-thumb) / 0.75) !important;
+  border-radius: 0 !important;
+}
+.xterm .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider:hover {
+  background: rgb(var(--sk-moss) / 0.8) !important;
+}
+
+/* ════════════════════════════════════════════════════
+   弹窗 / 菜单 / 表单 — 细框黑曜石
+   ════════════════════════════════════════════════════ */
+.fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
+  border: 1px solid rgb(var(--sk-ivory) / 0.16) !important;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.6),
+    0 24px 70px rgb(0 0 0 / 0.65) !important;
+}
+.fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
+  border: 1px solid rgb(var(--sk-ivory) / 0.14) !important;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 0.55) !important;
+}
+input[type="checkbox"] { accent-color: rgb(var(--sk-moss)); }
+
+.text-ide-success { color: rgb(var(--ide-success)) !important; }
+.text-ide-danger { color: rgb(var(--ide-danger)) !important; }
+.text-ide-warning { color: rgb(var(--ide-warning)) !important; }
