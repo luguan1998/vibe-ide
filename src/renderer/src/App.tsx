@@ -649,6 +649,9 @@ export default function App() {
   warnSessionsRef.current = warnSessions
   const [programStatus, setProgramStatus] = useState<Record<string, ProgramStatus>>({})
   const prevBusyRef = useRef<Record<string, boolean>>({})
+  const remoteIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const remoteIdleCwdsRef = useRef<Set<string>>(new Set())
+  const remoteIdleLastAtRef = useRef(0)
   const idleAudioRef = useRef<HTMLAudioElement | null>(null)
   const lastIdleSoundRef = useRef(0)
   const idleSoundEnabledRef = useRef(idleSoundEnabled)
@@ -710,6 +713,7 @@ export default function App() {
     const prev = prevBusyRef.current
     const updates: Record<string, boolean> = {}
     let changed = false
+    const remoteIdleCwds = new Set<string>()
     // 看板开启时没有"选中的session"（effSel=null）：所有 running→idle 一视同仁记 warn
     const effSel = boardActive ? null : activeSessionId
     for (const s of sessions) {
@@ -718,6 +722,7 @@ export default function App() {
       const prevBusy = prev[sid] ?? false
       if (prevBusy && !busy) {
         playIdleSound()
+        if (s.sshConnectionId && s.cwd) remoteIdleCwds.add(s.cwd)
         // 非被选中 session：running→idle 变 warn，并触发一次回复快照读取（游标未注册时主进程 no-op）
         if (sid !== effSel) {
           updates[sid] = true
@@ -733,6 +738,19 @@ export default function App() {
     const cur: Record<string, boolean> = {}
     for (const s of sessions) cur[s.id] = !!sessionBusy[s.id]
     prevBusyRef.current = cur
+    if (remoteIdleCwds.size) {
+      for (const cwd of remoteIdleCwds) remoteIdleCwdsRef.current.add(cwd)
+      if (!remoteIdleTimerRef.current) {
+        remoteIdleTimerRef.current = setTimeout(() => {
+          remoteIdleTimerRef.current = null
+          remoteIdleLastAtRef.current = Date.now()
+          for (const cwd of remoteIdleCwdsRef.current) {
+            window.dispatchEvent(new CustomEvent('vibe-agent-idle', { detail: { cwd } }))
+          }
+          remoteIdleCwdsRef.current.clear()
+        }, Math.max(0, 2000 - (Date.now() - remoteIdleLastAtRef.current)))
+      }
+    }
     if (changed) {
       setWarnSessions(p => {
         const n = { ...p }

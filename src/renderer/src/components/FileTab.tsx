@@ -737,6 +737,18 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     return () => { clearTimeout(timer); window.api.file.removeChangedListener(handler) }
   }, [workspacePath, refreshAllExpanded, pauseWhenHidden])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const cwd = (e as CustomEvent).detail?.cwd
+      if (!cwd || !workspacePath || norm(cwd) !== norm(workspacePath)) return
+      if (pauseWhenHidden && !isActiveRef.current) { fsDirtyRef.current = true; return }
+      treeCacheRef.current.delete(norm(workspacePath))
+      refreshAllExpanded()
+    }
+    window.addEventListener('vibe-agent-idle', handler)
+    return () => window.removeEventListener('vibe-agent-idle', handler)
+  }, [workspacePath, refreshAllExpanded, pauseWhenHidden])
+
   // 隐藏期间攒下的变更，切回时补刷一次
   useEffect(() => {
     if (!pauseWhenHidden || !isActive) return

@@ -55,6 +55,7 @@
 
 ### P1 文件监听
 
+- [x] SSH 会话 busy→idle 边沿补一次目录树 + GitTab 刷新（轻量兜底，无需远端常驻监听）
 - [ ] relay `fs.watch` 推送 `fs:changed`
 - [ ] 或低频轮询兜底
 - 验收：远端外部改动后文件树/GitTab 自动刷新
@@ -84,7 +85,7 @@
 - ProxyCommand 不支持
 - 主机密钥首次连接自动信任，尚无 UI 确认
 - nvm 安装的 Node 可能探测不到（非交互式 PATH），建议系统级安装
-- 远端无文件监听：Dir 需手动刷新，GitTab 不会因终端里改文件而自动刷新
+- 远端无文件监听：仅在 SSH 会话 busy→idle（如终端命令结束）时补刷目录树与 GitTab；外部机器或后台进程改动仍需手动刷新
 - 远端暂不支持：内容搜索（ripgrep）、LSP、CodeGraph、PR、worktree、submodule、applyBranch
 - 远端根按首次启动的 cwd 注册；两台主机同路径仍会串（同组键限制）
 

@@ -1012,6 +1012,20 @@ export default function GitTab({ workspacePath, effectiveGitPath, worktreeNav, s
     }
   }, [refreshAll])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const cwd = (e as CustomEvent).detail?.cwd
+      if (!cwd || !workspacePath || cwd.replace(/\\/g, '/') !== workspacePath.replace(/\\/g, '/')) return
+      if (!isActiveRef.current) {
+        gitMetaDirtyRef.current = true
+        return
+      }
+      refreshAll()
+    }
+    window.addEventListener('vibe-agent-idle', handler)
+    return () => window.removeEventListener('vibe-agent-idle', handler)
+  }, [refreshAll, workspacePath])
+
   // 非活动面板攒下的变更，切回时补刷：换过路径 → 整套切换，meta 脏 → 全套，否则仅 status
   useEffect(() => {
     if (!isActive) return
