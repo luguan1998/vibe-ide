@@ -7,6 +7,7 @@ import { ModalOverlay } from './ModalOverlay'
 import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { loadFilterRules } from '../utils/fileFilter'
+import { hasExternalFileDrag, droppedFilePaths } from '../utils/fileDrop'
 import { useI18n } from '../i18n'
 import { ADD_ANNOTATION_EVENT, QUICK_OPEN_EVENT } from './vibeEvents'
 
@@ -41,6 +42,7 @@ interface FileTabProps {
   pauseWhenHidden?: boolean
   brushActive?: boolean
   onExploreNode?: (node: CodeSymbol) => void
+  onExternalFilesDrop?: (destDir: string, paths: string[]) => void
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -160,7 +162,7 @@ export function ContextMenuItem({ icon, label, danger, onClick }: { icon: React.
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, onNewFile, onNewFolder, inlineSearch, onCopyPath, brushActive, workspacePath }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, onNewFile, onNewFolder, inlineSearch, onCopyPath, brushActive, workspacePath, externalDropTarget, onExternalDragOver, onExternalDrop }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -181,9 +183,16 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   onCopyPath?: (fullPath: string) => void
   brushActive?: boolean
   workspacePath?: string | null
+  externalDropTarget?: string | null
+  onExternalDragOver?: (dir: string | null) => void
+  onExternalDrop?: (dir: string, e: React.DragEvent) => void
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
+  const sepIdx = Math.max(node.path.lastIndexOf('\\'), node.path.lastIndexOf('/'))
+  const parentDir = sepIdx > 0 ? node.path.slice(0, sepIdx) : (workspacePath || node.path)
+  const dropDir = isDir ? node.path : parentDir
+  const isExternalDropTarget = isDir && !!externalDropTarget && norm(externalDropTarget) === norm(node.path)
   const isSearchFolder = isDir && !!inlineSearch?.activePath && norm(inlineSearch.activePath) === norm(node.path)
   const isExpanded = expandedDirs.has(norm(node.path))
   const paddingLeft = 16 + depth * 16
@@ -244,11 +253,38 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/10' : ''}`}
+        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/10' : ''}${isExternalDropTarget ? ' bg-ide-accent/15 ring-1 ring-inset ring-ide-accent' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
         data-file-highlighted={highlightedFilePath === norm(node.path) ? 'true' : undefined}
+        draggable={!isRenaming && !isCreating && !brushActive}
+        onDragStart={(e) => {
+          if (isRenaming || isCreating || (e.target as HTMLElement).closest('input')) {
+            e.preventDefault()
+            return
+          }
+          e.preventDefault()
+          window.api.file.startDrag(node.path)
+        }}
+        onDragOver={(e) => {
+          if (!hasExternalFileDrag(e)) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer!.dropEffect = 'copy'
+          onExternalDragOver?.(dropDir)
+        }}
+        onDragLeave={(e) => {
+          if (!hasExternalFileDrag(e)) return
+          onExternalDragOver?.(null)
+        }}
+        onDrop={(e) => {
+          if (!hasExternalFileDrag(e)) return
+          e.preventDefault()
+          e.stopPropagation()
+          onExternalDragOver?.(null)
+          onExternalDrop?.(dropDir, e)
+        }}
       >
         {isDir ? (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className={`w-3 h-3 text-ide-text-muted transition-transform shrink-0 file-tree-item__toggle ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>
@@ -554,7 +590,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode, onExternalFilesDrop }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -579,6 +615,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(false)
   const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
+  const [externalDropDir, setExternalDropDir] = useState<string | null>(null)
   const { t } = useI18n()
 
   const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(DEFAULT_SECTION_VIS)
@@ -1159,8 +1196,33 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     }
   }, [fileClipboard, refreshDir])
 
+  const handleExternalDrop = useCallback((destDir: string, e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setExternalDropDir(null)
+    const paths = droppedFilePaths(e)
+    if (paths.length > 0) onExternalFilesDrop?.(destDir, paths)
+  }, [onExternalFilesDrop])
+
   return (
-    <div className={`flex-1 flex flex-col min-h-0 file-tab${brushActive ? ' brush-copy-mode' : ''}`}>
+    <div
+      className={`flex-1 flex flex-col min-h-0 file-tab${brushActive ? ' brush-copy-mode' : ''}`}
+      onDragOver={(e) => {
+        if (!hasExternalFileDrag(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer!.dropEffect = 'copy'
+        if (workspacePath) setExternalDropDir(workspacePath)
+      }}
+      onDragLeave={(e) => {
+        if (!hasExternalFileDrag(e)) return
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setExternalDropDir(null)
+      }}
+      onDrop={(e) => {
+        if (!hasExternalFileDrag(e) || !workspacePath) return
+        handleExternalDrop(workspacePath, e)
+      }}
+    >
       {workspacePath && (
         <div className="h-9 pl-5 pr-4 flex items-center border-b border-ide-border shrink-0 gap-2 acrylic-titlebar-clean file-tab__header"
           onContextMenu={(e) => { e.preventDefault(); setSectionMenu({ x: e.clientX, y: e.clientY }) }}
@@ -1216,7 +1278,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
         </div>
       )}
       <div
-        className="flex-1 min-h-0 overflow-y-auto file-tab__tree"
+        className={`flex-1 min-h-0 overflow-y-auto file-tab__tree${workspacePath && externalDropDir && norm(externalDropDir) === norm(workspacePath) ? ' ring-1 ring-inset ring-ide-accent/60' : ''}`}
         onContextMenu={(e) => {
           if (!workspacePath) return
           e.preventDefault()
@@ -1294,6 +1356,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 onCopyPath={handleCopyPath}
                 brushActive={brushActive}
                 workspacePath={workspacePath}
+                externalDropTarget={externalDropDir}
+                onExternalDragOver={setExternalDropDir}
+                onExternalDrop={handleExternalDrop}
               />
             ))}
           </div>

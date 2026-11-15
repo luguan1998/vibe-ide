@@ -7,6 +7,8 @@ import AuxTab from './AuxTab'
 import FileTab from './FileTab'
 import { FileIcon } from './FileIcons'
 import { baseName } from '../fileTabs'
+import { ModalOverlay } from './ModalOverlay'
+import { hasExternalFileDrag, droppedFilePaths, copyExternalFilesInto } from '../utils/fileDrop'
 import { PanelGitIcon, PanelDirIcon } from '../panelIcons'
 import GameLauncher from './GameLauncher'
 import BrowserView, { BrowserViewHandle } from './BrowserView'
@@ -443,6 +445,25 @@ function RightPanel({
 
   const visibleList = useMemo(() => tabOrder.filter(s => visibleTabs[s]), [tabOrder, visibleTabs])
 
+  const [externalDrop, setExternalDrop] = useState<{ destDir: string; paths: string[] } | null>(null)
+  const externalDragRevealRef = useRef(false)
+  const revealFileSection = useCallback(() => {
+    setVisibleTabs(prev => prev.file ? prev : { ...prev, file: true })
+    selectSection('file')
+  }, [selectSection])
+  useEffect(() => { externalDragRevealRef.current = false }, [activeSection])
+  const handleExternalFilesDrop = useCallback((destDir: string, paths: string[]) => {
+    if (!destDir || paths.length === 0) return
+    setExternalDrop({ destDir, paths })
+  }, [])
+  const confirmExternalDrop = useCallback(async () => {
+    if (!externalDrop) return
+    const pending = externalDrop
+    setExternalDrop(null)
+    await copyExternalFilesInto(pending.paths, pending.destDir)
+    setFileRefreshKey(k => k + 1)
+  }, [externalDrop])
+
   // 分栏右列宽度拖拽（仅本次会话内有效，不持久化）
   const handleSplitResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -624,7 +645,31 @@ function RightPanel({
   }
 
   return (
-    <div className="flex flex-col h-full right-panel relative">
+    <div
+      className="flex flex-col h-full right-panel relative"
+      onDragOver={(e) => {
+        if (!hasExternalFileDrag(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer!.dropEffect = 'copy'
+        if (!externalDragRevealRef.current) {
+          externalDragRevealRef.current = true
+          if (activeSection !== 'file') revealFileSection()
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!hasExternalFileDrag(e)) return
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) externalDragRevealRef.current = false
+      }}
+      onDrop={(e) => {
+        externalDragRevealRef.current = false
+        if (!hasExternalFileDrag(e) || !workspacePath) return
+        e.preventDefault()
+        e.stopPropagation()
+        const paths = droppedFilePaths(e)
+        if (paths.length > 0) handleExternalFilesDrop(workspacePath, paths)
+      }}
+    >
       {!splitWide && !dockKind && renderTabBar()}
 
       <div
@@ -736,6 +781,7 @@ function RightPanel({
           isActive={activeSection === 'file'}
           brushActive={brushActive}
           onExploreNode={onExploreNode}
+          onExternalFilesDrop={handleExternalFilesDrop}
         />
       </div>
 
@@ -771,6 +817,41 @@ function RightPanel({
             />
           </div>
         </div>
+      )}
+
+      {externalDrop && (
+        <ModalOverlay onClose={() => setExternalDrop(null)}>
+          <div className="bg-ide-bg border border-ide-border rounded shadow-lg p-4 w-[min(420px,90vw)]" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-ide-text mb-1">
+              {t('Copy {n} item(s) to this folder?').replace('{n}', String(externalDrop.paths.length))}
+            </p>
+            <div className="text-[11px] text-ide-text-muted font-mono truncate mb-2" title={externalDrop.destDir}>
+              {externalDrop.destDir}
+            </div>
+            <div className="max-h-32 overflow-y-auto text-xs text-ide-text mb-4 flex flex-col gap-0.5">
+              {externalDrop.paths.slice(0, 8).map(p => (
+                <span key={p} className="truncate">{baseName(p)}</span>
+              ))}
+              {externalDrop.paths.length > 8 && (
+                <span className="text-ide-text-muted">+{externalDrop.paths.length - 8}</span>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 text-xs text-ide-text-muted hover:text-ide-text hover:bg-ide-hover rounded"
+                onClick={() => setExternalDrop(null)}
+              >
+                {t('Cancel')}
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs bg-ide-accent hover:bg-ide-accent-hover text-white rounded"
+                onClick={confirmExternalDrop}
+              >
+                {t('Copy')}
+              </button>
+            </div>
+          </div>
+        </ModalOverlay>
       )}
 
     </div>

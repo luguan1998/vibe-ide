@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { app, ipcMain, nativeImage, shell } from 'electron'
 import { spawn } from 'child_process'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { existsSync, statSync } from 'fs'
@@ -26,6 +26,17 @@ const BINARY_EXTENSIONS = new Set([
 ])
 
 const MAX_EDIT_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+function dragIcon(): Electron.NativeImage | string {
+  const candidates = [
+    join(process.resourcesPath, 'icon.ico'),
+    join(__dirname, '../../build/icon.ico'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return p
+  }
+  return nativeImage.createEmpty()
+}
 
 function isBinaryByExtension(filePath: string): boolean {
   const ext = extname(filePath).toLowerCase().replace(/^\./, '')
@@ -390,6 +401,23 @@ export function registerFileHandlers(): void {
     } catch (err: any) {
       return { error: err.message }
     }
+  })
+
+  // Drag a file out to the OS (Explorer copies it to the drop folder)
+  ipcMain.on(IPC_CHANNELS.FILE_START_DRAG, async (event, filePath: string) => {
+    try {
+      let localPath = filePath
+      if (remoteRelay(filePath)) {
+        const tempRoot = join(app.getPath('temp'), 'vibe-ide-drag')
+        await rm(tempRoot, { recursive: true, force: true })
+        const tempDir = join(tempRoot, Date.now().toString(36))
+        await mkdir(tempDir, { recursive: true })
+        localPath = join(tempDir, posix.basename(filePath))
+        await copyAcrossBackends(filePath, localPath)
+      }
+      if (event.sender.isDestroyed()) return
+      event.sender.startDrag({ file: localPath, icon: dragIcon() })
+    } catch {}
   })
 
   // Open file in system explorer

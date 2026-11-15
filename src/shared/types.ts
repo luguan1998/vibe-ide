@@ -78,6 +78,7 @@ export const IPC_CHANNELS = {
   FILE_OPEN_TERMINAL: 'file:openTerminal',
   FILE_COPY: 'file:copy',
   FILE_MOVE: 'file:move',
+  FILE_START_DRAG: 'file:startDrag',
   FILE_GET_DRIVES: 'file:getDrives',
   FILE_FIND: 'file:find',
   FILE_SEARCH_BY_NAME: 'file:searchByName',

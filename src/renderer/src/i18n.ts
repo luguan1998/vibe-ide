@@ -274,6 +274,7 @@ const ZH_MAP: Record<string, string> = {
   'Switching session closes open tabs. Unsaved changes will be lost.': '切换会话将关闭打开的文件，未保存的修改会丢失。',
   'Confirm': '确认',
   'Delete {fileName}?': '确定删除 {fileName}？',
+  'Copy {n} item(s) to this folder?': '确认复制 {n} 个文件到此文件夹？',
   'Recently Opened': '最近打开的文件',
   'Remove': '移除',
   'Queued': '待发送',

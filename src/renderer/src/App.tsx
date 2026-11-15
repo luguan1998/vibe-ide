@@ -124,6 +124,7 @@ declare global {
         openTerminal: (dirPath: string) => Promise<any>
         copy: (srcPath: string, destPath: string) => Promise<any>
         move: (srcPath: string, destPath: string) => Promise<any>
+        startDrag: (filePath: string) => void
         find: (cwd: string, filename: string, skipPatterns?: string[]) => Promise<any>
         searchByName: (cwd: string, query: string, skipPatterns?: string[], nameOnly?: boolean) => Promise<any>
         onChanged: (callback: () => void) => any
@@ -1226,6 +1227,8 @@ export default function App() {
 
     const onDrop = async (e: DragEvent) => {
       if (!isFileDrag(e)) return
+      const panel = centerPanelRef.current
+      if (!panel || !panel.contains(e.target as Node)) return
       const baseTab = activeTabRef.current
       if (!(baseTab?.kind === 'diff' && baseTab.defaultEdit && !baseTab.compareOriginalPath)) return
       e.preventDefault()

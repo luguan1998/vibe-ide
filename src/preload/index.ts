@@ -115,6 +115,7 @@ const api = {
     openTerminal: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN_TERMINAL, dirPath),
     copy: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_COPY, srcPath, destPath),
     move: (srcPath: string, destPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_MOVE, srcPath, destPath),
+    startDrag: (filePath: string) => ipcRenderer.send(IPC_CHANNELS.FILE_START_DRAG, filePath),
     find: (cwd: string, filename: string, skipPatterns?: string[]) => ipcRenderer.invoke(IPC_CHANNELS.FILE_FIND, cwd, filename, skipPatterns),
     searchByName: (cwd: string, query: string, skipPatterns?: string[], nameOnly?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.FILE_SEARCH_BY_NAME, cwd, query, skipPatterns, nameOnly),
         onChanged: (callback: () => void) => {
