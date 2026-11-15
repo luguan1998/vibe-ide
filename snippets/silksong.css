@@ -334,7 +334,7 @@ input, select, textarea {
 .right-panel__content::after {
   content: '' !important;
   position: absolute !important;
-  inset: 5px !important;
+  inset: 0 2px !important;
   z-index: -1 !important;
   pointer-events: none !important;
   border: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
@@ -342,7 +342,8 @@ input, select, textarea {
   background-image:
     url('assets/silksong-corner-tl.svg'),
     url('assets/silksong-corner-tr.svg') !important;
-  background-position: left -6px, right -6px !important;
+  /* 横向必须写 4 值形式；`left -6px` 会被解析成「靠左 + 纵向 -6px」 */
+  background-position: left -5px top -6px, right -5px top -6px !important;
   background-repeat: no-repeat !important;
   background-size: 40px 40px !important;
 }
@@ -351,13 +352,13 @@ input, select, textarea {
 .right-panel__content::before {
   content: '' !important;
   position: absolute !important;
-  inset: 5px !important;
+  inset: 0 2px !important;
   z-index: 1 !important;
   pointer-events: none !important;
   background-image:
     url('assets/silksong-corner-bl.svg'),
     url('assets/silksong-corner-br.svg') !important;
-  background-position: left 0 bottom -4px, right 0 bottom -4px !important;
+  background-position: left -5px bottom -4px, right -5px bottom -4px !important;
   background-repeat: no-repeat !important;
   background-size: 40px 40px !important;
 }
