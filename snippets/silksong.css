@@ -90,6 +90,38 @@ body .bg-ide-panel {
   background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
 }
 
+/* 浮窗 / 菜单 / 搜索框：压在文字上，透底后与正文重叠看不清，一律实底。
+   #root 前缀压过上面的 .bg-ide-* 半透规则；[class~=...] 匹配 Tailwind 组合类 */
+#root .search-flyout,
+#root .search-flyout .bg-ide-sidebar,
+#root .md-search-bar,
+#root [class~="fixed"][class~="bg-ide-sidebar"],
+#root [class~="absolute"][class~="bg-ide-sidebar"] {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+#root .search-flyout .bg-ide-bg,
+#root .md-search-bar .bg-ide-bg,
+#root .md-block-editor,
+#root [class~="fixed"][class~="bg-ide-bg"],
+#root [class~="absolute"][class~="bg-ide-bg"] {
+  background-color: rgb(var(--ide-bg)) !important;
+}
+/* 弹窗内容区自身不定位，但同样盖在正文上：搜索确认 / 快速打开 / 快捷键配置 */
+#root [class~="fixed"][class~="inset-0"] .bg-ide-sidebar {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+#root [class~="fixed"][class~="inset-0"] .bg-ide-bg {
+  background-color: rgb(var(--ide-bg)) !important;
+}
+/* 毛玻璃浮层（大纲 / 轮次导航）同样压在正文上：底图复杂，70% 透 + 模糊仍透字 */
+#root [class~="backdrop-blur-md"] {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+/* 划词批注输入框：直接浮在消息文字上 */
+#root .ai-tab__annotation-input textarea {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+
 /* 暗角：四周压暗，右侧留出苔藓洞窟的一线天光 */
 body::before {
   content: '' !important;
@@ -298,7 +330,7 @@ input, select, textarea {
     inset 0 0 45px rgb(0 0 0 / 0.5),
     0 0 26px rgb(var(--sk-moss) / 0.06) !important;
 }
-/* 内框：发丝线 + 四角藤蔓（9 层 background 不占布局、不吃事件） */
+/* 内框：发丝线 + 上角藤蔓（不占布局、不吃事件） */
 .right-panel__content::after {
   content: '' !important;
   position: absolute !important;
@@ -309,10 +341,23 @@ input, select, textarea {
   border-radius: 3px !important;
   background-image:
     url('assets/silksong-corner-tl.svg'),
-    url('assets/silksong-corner-tr.svg'),
+    url('assets/silksong-corner-tr.svg') !important;
+  background-position: left -6px, right -6px !important;
+  background-repeat: no-repeat !important;
+  background-size: 40px 40px !important;
+}
+/* 下角藤蔓单独压在最上层：文件区分节标题（ARCH）和滚动内容会盖住它；
+   位置再往下沉 4px */
+.right-panel__content::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 5px !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
+  background-image:
     url('assets/silksong-corner-bl.svg'),
     url('assets/silksong-corner-br.svg') !important;
-  background-position: left -6px, right -6px, left bottom, right bottom !important;
+  background-position: left 0 bottom -4px, right 0 bottom -4px !important;
   background-repeat: no-repeat !important;
   background-size: 40px 40px !important;
 }
