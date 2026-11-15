@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from 'react'
 import { KanbanSquare, X, Send, CornerDownLeft, ChevronDown, Filter, Check, ArrowUp, Merge, MousePointer2, SquareCheck } from 'lucide-react'
 import type { SessionTab } from '../sessionRestore'
 import type { WorktreeRecord, WorktreeRecordView } from '@shared/types'
@@ -20,6 +20,31 @@ export function requestBoardNewTodo() {
 const BOARD_DEFAULT_CMD_KEY = 'vibe-ide-board-default-cmd'
 const BOARD_FILTER_KEY = 'vibe-ide-board-cwd-exclude'
 const BOARD_TODOS_KEY = 'vibe-ide-board-todos'
+
+function readStoredTodoTexts(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(BOARD_TODOS_KEY) || '[]')
+    return Array.isArray(v) ? v.filter((x: unknown) => typeof x === 'string' && x.trim()) : []
+  } catch {
+    return []
+  }
+}
+
+let boardTodoCount = readStoredTodoTexts().length
+const boardTodoCountListeners = new Set<() => void>()
+
+function setBoardTodoCount(n: number) {
+  if (n === boardTodoCount) return
+  boardTodoCount = n
+  boardTodoCountListeners.forEach(l => l())
+}
+
+export function useBoardTodoCount(): number {
+  return useSyncExternalStore(
+    (listener) => { boardTodoCountListeners.add(listener); return () => { boardTodoCountListeners.delete(listener) } },
+    () => boardTodoCount
+  )
+}
 
 function readDefaultCmd(): string {
   try {
@@ -390,16 +415,9 @@ export default function BoardView({
   const [multiSelect, setMultiSelect] = useState(false)
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set())
   const [multiDraft, setMultiDraft] = useState('')
-  const [todos, setTodos] = useState<TodoItem[]>(() => {
-    try {
-      const v = JSON.parse(localStorage.getItem(BOARD_TODOS_KEY) || '[]')
-      return Array.isArray(v)
-        ? v.filter((x: any) => typeof x === 'string' && x.trim()).map((text: string, i: number) => ({ id: i + 1, text }))
-        : []
-    } catch {
-      return []
-    }
-  })
+  const [todos, setTodos] = useState<TodoItem[]>(() =>
+    readStoredTodoTexts().map((text, i) => ({ id: i + 1, text }))
+  )
   const nextTodoId = useRef(todos.reduce((m, t) => Math.max(m, t.id), 0) + 1)
   const [todoModal, setTodoModal] = useState<{ id: number | null; draft: string } | null>(null)
 
@@ -407,6 +425,7 @@ export default function BoardView({
     try {
       localStorage.setItem(BOARD_TODOS_KEY, JSON.stringify(todos.map(x => x.text)))
     } catch {}
+    setBoardTodoCount(todos.length)
   }, [todos])
 
   const addTodo = useCallback(() => {

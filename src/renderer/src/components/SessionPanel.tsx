@@ -18,7 +18,7 @@ import { loadFilterRules, saveFilterRules, DEFAULT_FILTER_RULES } from '../utils
 import type { ProgramStatus } from '../programStatus'
 import { ClaudeLogoIcon } from './ClaudeLogoIcon'
 import { PiLogoIcon } from './PiLogoIcon'
-import { BOARD_FOCUS, requestBoardNewTodo } from './BoardView'
+import { BOARD_FOCUS, requestBoardNewTodo, useBoardTodoCount } from './BoardView'
 import { SessionGlyph, SshIcon, renderKindIcon } from '../sessionIcon'
 import { useSchedTasks, setSchedTask, deleteSchedTask, markSchedFired, pruneSchedTasks } from '../schedStore'
 import iconPattern from '@renderer/assets/icon-pattern.png?inline'
@@ -718,6 +718,7 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   onResetUiStyle,
   onOpenRecentFile,
 }: SessionPanelProps, ref: React.ForwardedRef<SessionPanelHandle>) {
+  const boardTodoCount = useBoardTodoCount()
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showFileFilterRules, setShowFileFilterRules] = useState(false)
   const [fileFilterRules, setFileFilterRules] = useState<string[]>(() => loadFilterRules())
@@ -1792,6 +1793,14 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
             <KanbanSquare size={14} className={boardActive ? 'text-ide-accent' : 'text-ide-text-muted'} />
             {t('Task Board')}
           </button>
+          {boardTodoCount > 0 && (
+            <span
+              title={t('Todos')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 min-w-5 h-5 px-1 rounded-full bg-ide-accent text-white text-[10px] font-semibold flex items-center justify-center pointer-events-none group-hover:hidden"
+            >
+              {boardTodoCount}
+            </span>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); requestBoardNewTodo() }}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded text-ide-text-muted opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto hover:bg-ide-accent hover:text-white transition-all flex items-center justify-center"
