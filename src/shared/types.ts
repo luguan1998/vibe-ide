@@ -79,6 +79,9 @@ export const IPC_CHANNELS = {
   FILE_COPY: 'file:copy',
   FILE_MOVE: 'file:move',
   FILE_START_DRAG: 'file:startDrag',
+  CLIPBOARD_DESCRIBE: 'clipboard:describe',
+  CLIPBOARD_WRITE: 'clipboard:write',
+  CLIPBOARD_CONSUME: 'clipboard:consume',
   FILE_GET_DRIVES: 'file:getDrives',
   FILE_FIND: 'file:find',
   FILE_SEARCH_BY_NAME: 'file:searchByName',
@@ -642,6 +645,13 @@ export interface FileNode {
   path: string
   type: 'file' | 'directory'
   children?: FileNode[]
+}
+
+export interface ClipboardDescriptor {
+  paths: string[]
+  operation: 'copy' | 'cut'
+  source: 'app' | 'os'
+  error?: string
 }
 
 // Recently opened file entry (global, persisted in localStorage)

@@ -37,7 +37,21 @@
       "!node_modules/remark-gfm/**",
       "!node_modules/lucide-react/**",
       "!node_modules/dagre/**",
-      "!node_modules/@types/dagre/**"
+      "!node_modules/@types/dagre/**",
+      "!node_modules/clipboard-files/build/Release/obj/**",
+      "!node_modules/clipboard-files/build/Release/*.pdb",
+      "!node_modules/clipboard-files/build/Release/*.iobj",
+      "!node_modules/clipboard-files/build/Release/*.ipdb",
+      "!node_modules/clipboard-files/build/Release/*.lib",
+      "!node_modules/clipboard-files/build/Release/*.exp",
+      "!node_modules/clipboard-files/build/*.tlog",
+      "!node_modules/clipboard-files/build/*.vcxproj",
+      "!node_modules/clipboard-files/build/*.vcxproj.filters",
+      "!node_modules/clipboard-files/build/*.sln",
+      "!node_modules/clipboard-files/build/config.gypi",
+      "!node_modules/clipboard-files/src/**",
+      "!node_modules/clipboard-files/binding.gyp",
+      "!node_modules/clipboard-files/node_modules/node-addon-api/**"
     ],
     "extraResources": [
       {
@@ -116,7 +130,8 @@
       "node_modules/pyright/**",
       "node_modules/typescript/**",
       "node_modules/typescript-language-server/**",
-      "node_modules/node-pty/**"
+      "node_modules/node-pty/**",
+      "node_modules/clipboard-files/**"
     ]
   },
   "dependencies": {
@@ -132,6 +147,7 @@
     "@xterm/addon-web-links": "^0.13.0-beta.290",
     "@xterm/addon-webgl": "^0.20.0-beta.289",
     "@xterm/xterm": "^6.1.0-beta.290",
+    "clipboard-files": "^3.0.0",
     "dagre": "^0.8.5",
     "iconv-lite": "^0.7.2",
     "jschardet": "^3.1.4",
@@ -163,6 +179,7 @@
     "electron": "^37.10.3",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "node-gyp": "^11.5.0",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.4.49",
     "resedit": "^3.0.2",

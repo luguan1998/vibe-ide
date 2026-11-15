@@ -130,6 +130,11 @@ declare global {
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
+      clipboard: {
+        describe: () => Promise<{ paths: string[]; operation: 'copy' | 'cut'; source: 'app' | 'os'; error?: string }>
+        write: (paths: string[], operation: 'copy' | 'cut') => Promise<{ paths: string[]; operation: 'copy' | 'cut'; source: 'app' | 'os'; error?: string }>
+        consume: () => Promise<{ paths: string[]; operation: 'copy' | 'cut'; source: 'app' | 'os'; error?: string }>
+      }
       claudeConfig: {
         dir: (configDir?: string) => Promise<string>
       }
@@ -1755,6 +1760,23 @@ export default function App() {
     })
     if (!nextId) returnToBaseView()
   }, [closeTab, flushTabVisibleLine, returnToBaseView])
+
+  // 文件/目录被删除：关掉对应的编辑/预览 tab（历史 commit diff 不受影响）
+  const handleFileDeleted = useCallback((deletedPath: string) => {
+    const norm = (p: string) => {
+      const n = p.replace(/\\/g, '/').replace(/\/+$/, '')
+      return /^[A-Za-z]:\//.test(n) ? n.toLowerCase() : n
+    }
+    const target = norm(deletedPath)
+    const ids = tabsRef.current
+      .filter(t => {
+        if (t.kind === 'diff' && t.commitHash) return false
+        const p = norm(t.fullPath)
+        return p === target || p.startsWith(target + '/')
+      })
+      .map(t => t.id)
+    for (const id of ids) closeTabNow(id)
+  }, [closeTabNow])
 
   const requestCloseTabById = useCallback((tabId: string) => {
     if (closeAskRef.current) return
@@ -4060,6 +4082,7 @@ export default function App() {
             onOpenFileFromRightTerminal={handleOpenFileFromRightTerminal}
             onOpenFileFromSearch={handleOpenSearchResult}
             onOpenFileFromExplorer={handleOpenFileFromExplorer}
+            onFileDeleted={handleFileDeleted}
             onCompareWithCurrent={handleCompareWithCurrent}
             currentEditFilePath={currentEditFilePath}
             onPreviewMarkdown={handlePreviewMarkdown}

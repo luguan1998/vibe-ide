@@ -34,6 +34,7 @@ interface RightPanelProps {
   clearAuxBufferTrigger?: { sid: string; n: number }
 
   onOpenFileFromExplorer?: (fullPath: string) => void
+  onFileDeleted?: (fullPath: string) => void
   onCompareWithCurrent?: (fullPath: string) => void
   currentEditFilePath?: string | null
   onPreviewMarkdown?: (fullPath: string, fileName: string) => void
@@ -396,7 +397,7 @@ function RightPanel({
   rightTerminalSessions, activeSessionId,
   onCreateRightTerminal, onCloseRightTerminal,
   activeAuxIndex, onCloseAuxTerminal, onSelectAuxTab, onSplitAuxTerminal, onResizeAuxSplit,
-  clearAuxBufferTrigger, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
+  clearAuxBufferTrigger, onOpenFileFromExplorer, onFileDeleted, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenFileInBrowser,
   onDiffScroll,
   onHunkNav,
   capsuleTabs = true,
@@ -782,6 +783,7 @@ function RightPanel({
           brushActive={brushActive}
           onExploreNode={onExploreNode}
           onExternalFilesDrop={handleExternalFilesDrop}
+          onFileDeleted={onFileDeleted}
         />
       </div>
 

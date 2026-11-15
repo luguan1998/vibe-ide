@@ -132,6 +132,12 @@ const api = {
     }
   },
 
+  clipboard: {
+    describe: () => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_DESCRIBE),
+    write: (paths: string[], operation: 'copy' | 'cut') => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE, paths, operation),
+    consume: () => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_CONSUME),
+  },
+
   // Workspace operations
   claudeConfig: {
     dir: (configDir?: string) => ipcRenderer.invoke(IPC_CHANNELS.CLAUDE_CONFIG_DIR, configDir),

@@ -230,14 +230,12 @@ textarea {
 /* ════════════════════════════════════════════════════
    标题栏 — 夜空最暗层
    ════════════════════════════════════════════════════ */
+/* 标题栏保持纯色实底，不透全屏背景图：
+   右侧原生 WCO 窗控 overlay 由 titlebarSync 按 .titlebar-drag 的 backgroundColor 取色，
+   渐变/透明都会让窗控区与标题栏出现色差 */
 .titlebar-drag {
-  background: linear-gradient(180deg, rgb(10 12 28 / 0.8), rgb(18 22 48 / 0.7)) !important;
-}
-
-/* 金色星光线 — 画在内容区顶边（.app__main border-t），
-   原生窗控按钮(32px overlay)盖住标题栏底边，画在上面右侧会被遮 */
-.app__main {
-  border-top: 2px solid rgb(255 195 40 / 0.25) !important;
+  background-color: rgb(10 12 28) !important;
+  background-image: none !important;
 }
 
 /* ════════════════════════════════════════════════════

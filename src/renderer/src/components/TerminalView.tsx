@@ -423,6 +423,18 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
     }
   }, [])
 
+  const pasteFilesFromClipboard = useCallback(async (): Promise<boolean> => {
+    try {
+      const desc = await window.api.clipboard.describe()
+      const paths = Array.isArray(desc?.paths) ? desc.paths : []
+      if (paths.length === 0) return false
+      xtermRef.current?.paste(paths.join(' '))
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
   const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.ico', '.svg'])
 
   const findDropImage = (files: FileList): File | null => {
@@ -706,8 +718,12 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
           }
           try {
             const text = await navigator.clipboard.readText()
-            if (text) xtermRef.current?.paste(text)
+            if (text) {
+              xtermRef.current?.paste(text)
+              return
+            }
           } catch {}
+          await pasteFilesFromClipboard()
         })()
         return
       }
@@ -1201,10 +1217,14 @@ const TerminalView = React.memo(forwardRef<TerminalViewHandle, TerminalViewProps
       }
       try {
         const text = await navigator.clipboard.readText()
-        if (text) xtermRef.current.paste(text)
+        if (text) {
+          xtermRef.current.paste(text)
+          return
+        }
       } catch {}
+      await pasteFilesFromClipboard()
     }
-  }, [sessionId, pasteFromClipboard, ocrEnabled])
+  }, [sessionId, pasteFromClipboard, pasteFilesFromClipboard, ocrEnabled])
 
   useEffect(() => {
     if (searchState?.visible) requestAnimationFrame(() => searchInputRef.current?.focus())

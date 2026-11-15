@@ -1,9 +1,11 @@
-import { app, ipcMain, nativeImage, shell } from 'electron'
+import { app, clipboard, ipcMain, nativeImage, shell } from 'electron'
+import { readFiles as readClipboardFiles, writeFiles as writeClipboardFiles } from 'clipboard-files'
 import { spawn } from 'child_process'
+import { createHash } from 'crypto'
 import { readFile, writeFile, readdir, rename, mkdir, rm, cp, stat } from 'fs/promises'
 import { existsSync, statSync } from 'fs'
 import { join, dirname, extname, posix } from 'path'
-import { IPC_CHANNELS } from '../shared/types'
+import { IPC_CHANNELS, type ClipboardDescriptor } from '../shared/types'
 import * as iconv from 'iconv-lite'
 import * as jschardet from 'jschardet'
 import { normalizeEncoding, DEFAULT_ENCODING } from '../shared/encodings'
@@ -26,6 +28,58 @@ const BINARY_EXTENSIONS = new Set([
 ])
 
 const MAX_EDIT_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+interface ClipboardSnapshot {
+  files: string[]
+  formats: string
+  textHash: string
+}
+
+interface AppClipboardState extends ClipboardSnapshot {
+  appPaths: string[]
+  operation: 'copy' | 'cut'
+}
+
+let appClipboard: AppClipboardState | null = null
+
+function readOsClipboardFiles(): string[] {
+  try {
+    return readClipboardFiles().filter(p => typeof p === 'string' && p)
+  } catch {
+    return []
+  }
+}
+
+function clipboardSnapshot(): ClipboardSnapshot {
+  let formats = ''
+  let textHash = ''
+  try {
+    formats = clipboard.availableFormats().slice().sort().join('|')
+    const text = clipboard.readText()
+    if (text) textHash = createHash('sha1').update(text).digest('hex')
+  } catch {}
+  return { files: readOsClipboardFiles(), formats, textHash }
+}
+
+function samePathList(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const sa = [...a].sort()
+  const sb = [...b].sort()
+  return sa.every((p, i) => p === sb[i])
+}
+
+function sameSnapshot(a: ClipboardSnapshot, b: ClipboardSnapshot): boolean {
+  return samePathList(a.files, b.files) && a.formats === b.formats && a.textHash === b.textHash
+}
+
+function describeClipboard(): ClipboardDescriptor {
+  const snap = clipboardSnapshot()
+  if (appClipboard && sameSnapshot(snap, appClipboard)) {
+    return { paths: [...appClipboard.appPaths], operation: appClipboard.operation, source: 'app' }
+  }
+  if (appClipboard) appClipboard = null
+  return { paths: snap.files, operation: 'copy', source: 'os' }
+}
 
 function dragIcon(): Electron.NativeImage | string {
   const candidates = [
@@ -418,6 +472,59 @@ export function registerFileHandlers(): void {
       if (event.sender.isDestroyed()) return
       event.sender.startDrag({ file: localPath, icon: dragIcon() })
     } catch {}
+  })
+
+  // Single source of truth: the OS clipboard + the last app-written metadata overlay
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_DESCRIBE, () => describeClipboard())
+
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE, async (_event, paths: string[], operation: 'copy' | 'cut') => {
+    try {
+      const list = Array.isArray(paths) ? paths.filter(p => typeof p === 'string' && p) : []
+      const op: 'copy' | 'cut' = operation === 'cut' ? 'cut' : 'copy'
+      if (list.length === 0) return describeClipboard()
+
+      // Cut stays in-app (the addon can't write Preferred DropEffect). Clear the OS
+      // clipboard and snapshot it, so an external copy can still invalidate the cut.
+      if (op === 'cut') {
+        try { clipboard.clear() } catch {}
+        appClipboard = { appPaths: list, operation: op, ...clipboardSnapshot() }
+        return describeClipboard()
+      }
+
+      const localPaths: string[] = []
+      let tempDir: string | null = null
+      for (const p of list) {
+        if (remoteRelay(p)) {
+          if (!tempDir) {
+            const tempRoot = join(app.getPath('temp'), 'vibe-ide-clipboard')
+            await rm(tempRoot, { recursive: true, force: true })
+            tempDir = join(tempRoot, Date.now().toString(36))
+            await mkdir(tempDir, { recursive: true })
+          }
+          const target = join(tempDir, posix.basename(p))
+          await copyAcrossBackends(p, target)
+          localPaths.push(target)
+        } else {
+          localPaths.push(p)
+        }
+      }
+
+      writeClipboardFiles(localPaths)
+      const snap = clipboardSnapshot()
+      if (!samePathList(snap.files, localPaths)) {
+        return { ...describeClipboard(), error: 'clipboard write failed' } as ClipboardDescriptor
+      }
+      appClipboard = { appPaths: list, operation: op, ...snap }
+      return { paths: [...list], operation: op, source: 'app' } as ClipboardDescriptor
+    } catch (err: any) {
+      return { ...describeClipboard(), error: err.message } as ClipboardDescriptor
+    }
+  })
+
+  // Called after an in-app cut was pasted: the cut is consumed, so drop the app overlay.
+  ipcMain.handle(IPC_CHANNELS.CLIPBOARD_CONSUME, () => {
+    appClipboard = null
+    return describeClipboard()
   })
 
   // Open file in system explorer

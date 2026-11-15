@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Lightbulb, X, Pencil, Search, FilePlus, FolderPlus, ClipboardPaste, Scissors, Copy, Check, FolderOpen, GitCompare, Trash2, Route, Globe } from 'lucide-react'
-import { FileNode, GrepMatch, CodeSymbol } from '@shared/types'
+import { FileNode, GrepMatch, CodeSymbol, ClipboardDescriptor } from '@shared/types'
 import { getFileInfo, FileIcon, FolderIcon } from './FileIcons'
 import { PanelDirIcon } from '../panelIcons'
 import { ModalOverlay } from './ModalOverlay'
@@ -8,14 +8,13 @@ import { trimToMatch, highlightMatches } from './SearchPanel'
 import { parseDocTree, DocTreeItem, DocTreeNode, loadMdContent } from './DocTree'
 import { loadFilterRules } from '../utils/fileFilter'
 import { hasExternalFileDrag, droppedFilePaths } from '../utils/fileDrop'
+import { baseName } from '../fileTabs'
 import { useI18n } from '../i18n'
 import { ADD_ANNOTATION_EVENT, QUICK_OPEN_EVENT } from './vibeEvents'
 
-// File clipboard for cut/copy/paste
-interface FileClipboard {
-  path: string
-  name: string
-  operation: 'copy' | 'cut'
+function parentDirOf(path: string, workspacePath?: string | null): string {
+  const idx = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'))
+  return idx > 0 ? path.slice(0, idx) : (workspacePath || path)
 }
 
 // ── FileTab section visibility (arch) ──
@@ -43,6 +42,7 @@ interface FileTabProps {
   brushActive?: boolean
   onExploreNode?: (node: CodeSymbol) => void
   onExternalFilesDrop?: (destDir: string, paths: string[]) => void
+  onFileDeleted?: (fullPath: string) => void
 }
 
 // Workspace-root inline input (new file/folder at root level)
@@ -99,6 +99,8 @@ function RootInput({ editingState, onEditSubmit, onEditCancel, t }: {
 function norm(p: string): string {
   return p.replace(/\\/g, '/')
 }
+
+const normRoot = (p: string) => norm(p).replace(/\/+$/, '')
 
 function toRelPath(fullPath: string, workspace: string | null): string {
   if (!workspace) return fullPath
@@ -162,7 +164,7 @@ export function ContextMenuItem({ icon, label, danger, onClick }: { icon: React.
 }
 
 // File tree item component
-function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, onNewFile, onNewFolder, inlineSearch, onCopyPath, brushActive, workspacePath, externalDropTarget, onExternalDragOver, onExternalDrop }: {
+function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onContextMenu, editingState, onEditSubmit, onEditCancel, highlightedFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, onSearchInFolder, onNewFile, onNewFolder, inlineSearch, onCopyPath, brushActive, workspacePath, externalDropTarget, onExternalDragOver, onExternalDrop, selectedPath, onSelect }: {
   node: FileNode
   depth: number
   expandedDirs: Set<string>
@@ -186,13 +188,14 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   externalDropTarget?: string | null
   onExternalDragOver?: (dir: string | null) => void
   onExternalDrop?: (dir: string, e: React.DragEvent) => void
+  selectedPath?: string | null
+  onSelect?: (node: FileNode) => void
 }) {
   const { t } = useI18n()
   const isDir = node.type === 'directory'
-  const sepIdx = Math.max(node.path.lastIndexOf('\\'), node.path.lastIndexOf('/'))
-  const parentDir = sepIdx > 0 ? node.path.slice(0, sepIdx) : (workspacePath || node.path)
-  const dropDir = isDir ? node.path : parentDir
+  const dropDir = isDir ? node.path : parentDirOf(node.path, workspacePath)
   const isExternalDropTarget = isDir && !!externalDropTarget && norm(externalDropTarget) === norm(node.path)
+  const isSelected = !!selectedPath && selectedPath === norm(node.path)
   const isSearchFolder = isDir && !!inlineSearch?.activePath && norm(inlineSearch.activePath) === norm(node.path)
   const isExpanded = expandedDirs.has(norm(node.path))
   const paddingLeft = 16 + depth * 16
@@ -216,6 +219,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
 
   const handleClick = (e: React.MouseEvent) => {
     if (isRenaming || isCreating) return
+    onSelect?.(node)
     if (brushActive && !isDir) {
       e.preventDefault()
       e.stopPropagation()
@@ -253,7 +257,7 @@ function FileTreeItem({ node, depth, expandedDirs, onToggle, onOpenFile, onConte
   return (
     <>
       <div
-        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/10' : ''}${isExternalDropTarget ? ' bg-ide-accent/15 ring-1 ring-inset ring-ide-accent' : ''}`}
+        className={`group pr-2 py-0.5 ft-fname cursor-pointer hover:bg-ide-hover flex items-center gap-0.5 select-none file-tree-item${isDir ? ' file-tree-item--folder' : ' file-tree-item--file'}${highlightedFilePath === norm(node.path) ? ' file-tree-item--active bg-ide-accent/10' : ''}${isExternalDropTarget ? ' bg-ide-accent/15 ring-1 ring-inset ring-ide-accent' : ''}${isSelected ? ' bg-ide-accent/15' : ''}`}
         style={{ paddingLeft }}
         onClick={handleClick}
         onContextMenu={(e) => { if (!isRenaming && !isCreating) onContextMenu(e, node) }}
@@ -590,7 +594,7 @@ function ResultTreeItem({ node, depth, collapsedDirs, expandedFiles, onToggleDir
   )
 }
 
-export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode, onExternalFilesDrop }: FileTabProps) {
+export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompareWithCurrent, currentEditFilePath, onPreviewMarkdown, onPreviewImage, onOpenInBrowser, refreshKey, navigateToFile, onRefresh, onOpenFileAtLine, isActive, pauseWhenHidden, brushActive, onExploreNode, onExternalFilesDrop, onFileDeleted }: FileTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [editingState, setEditingState] = useState<{ type: 'rename' | 'newFile' | 'newFolder'; nodePath: string; error?: string } | null>(null)
@@ -614,9 +618,13 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const [docTree, setDocTree] = useState<DocTreeNode[]>([])
   const [expandedDocDirs, setExpandedDocDirs] = useState<Set<string>>(new Set())
   const [archExpanded, setArchExpanded] = useState(false)
-  const [fileClipboard, setFileClipboard] = useState<FileClipboard | null>(null)
+  const [clipboardDesc, setClipboardDesc] = useState<ClipboardDescriptor | null>(null)
   const [externalDropDir, setExternalDropDir] = useState<string | null>(null)
+  const [selectedNode, setSelectedNode] = useState<FileNode | null>(null)
+  const fileRootRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
+
+  useEffect(() => { setSelectedNode(null) }, [workspacePath])
 
   const [sectionVis, setSectionVis] = useState<FileTabSectionVis>(DEFAULT_SECTION_VIS)
   const [sectionMenu, setSectionMenu] = useState<{ x: number; y: number } | null>(null)
@@ -630,9 +638,17 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
   const prevWsRef = useRef<string | null>(null)
   const navAbortRef = useRef<AbortController | null>(null)
   const fileTreeRef = useRef<FileNode[]>([])
-  fileTreeRef.current = fileTree
   const expandedDirsRef = useRef<Set<string>>(new Set())
   expandedDirsRef.current = expandedDirs
+  // 跨 workspace 剪切后，源 workspace 的缓存不可信，切回时需重拉
+  const dirtyWorkspacesRef = useRef<Set<string>>(new Set())
+
+  // 状态与 ref 必须同步更新：ref 供连续 await 读取最新树，state 负责渲染。
+  // 不在 render 里写 ref——并发渲染的过期 render 会把 ref 回滚到旧树。
+  const applyFileTree = useCallback((next: FileNode[]) => {
+    fileTreeRef.current = next
+    setFileTree(next)
+  }, [])
 
   // Load file tree (root level only, depth=1 lazy load).
   const loadFileTree = useCallback(async (): Promise<void> => {
@@ -641,15 +657,14 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       const skipPatterns = loadFilterRules()
       const result = await window.api.file.tree(workspacePath, 1, skipPatterns)
       if (!result.error) {
-        fileTreeRef.current = result
-        setFileTree(result)
+        applyFileTree(result)
         treeCacheRef.current.set(norm(workspacePath), {
           tree: structuredClone(result),
           expanded: [...expandedDirsRef.current],
         })
       }
     } catch {}
-  }, [workspacePath])
+  }, [workspacePath, applyFileTree])
 
   // Lazy-load children of a directory (single level); no-op if already loaded.
   // Syncs fileTreeRef before setFileTree so consecutive awaits (navigateToFile) see the latest tree.
@@ -662,12 +677,10 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       const result = await window.api.file.tree(dirPath, 1, skipPatterns)
       if (signal?.aborted) return
       if (!result.error) {
-        const next = setNodeChildren(fileTreeRef.current, dirPath, result)
-        fileTreeRef.current = next
-        setFileTree(next)
+        applyFileTree(setNodeChildren(fileTreeRef.current, dirPath, result))
       }
     } catch {}
-  }, [])
+  }, [applyFileTree])
 
   // Reload a single directory's children (local refresh after file ops); invalidates cwd cache.
   const refreshDir = useCallback(async (dirPath: string): Promise<void> => {
@@ -675,21 +688,20 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       const skipPatterns = loadFilterRules()
       const result = await window.api.file.tree(dirPath, 1, skipPatterns)
       if (!result.error) {
-        if (workspacePath && norm(dirPath) === norm(workspacePath)) {
-          fileTreeRef.current = result
-          setFileTree(result)
+        const isRoot = !!workspacePath && normRoot(dirPath) === normRoot(workspacePath)
+        if (isRoot) {
+          applyFileTree(result)
         } else {
           const next = setNodeChildren(fileTreeRef.current, dirPath, result)
-          fileTreeRef.current = next
-          setFileTree(next)
+          if (next !== fileTreeRef.current) applyFileTree(next)
         }
       }
     } catch {}
     if (workspacePath) treeCacheRef.current.delete(norm(workspacePath))
-  }, [workspacePath])
+  }, [workspacePath, applyFileTree])
 
   // Coarse refresh: reload root + every expanded directory in one pass (filter/refresh/fs events).
-  const refreshAllExpanded = useCallback(async (): Promise<void> => {
+  const refreshAllExpanded = useCallback(async (expandedOverride?: string[]): Promise<void> => {
     if (!workspacePath) return
     const skipPatterns = loadFilterRules()
     let rootTree: FileNode[]
@@ -698,7 +710,7 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       if (r.error) return
       rootTree = r
     } catch { return }
-    const expanded = [...expandedDirsRef.current]
+    const expanded = expandedOverride ?? [...expandedDirsRef.current]
     const childrenMap = new Map<string, FileNode[]>()
     for (const dir of expanded) {
       try {
@@ -707,13 +719,12 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       } catch {}
     }
     const next = setNodesChildrenMap(rootTree, childrenMap)
-    fileTreeRef.current = next
-    setFileTree(next)
+    applyFileTree(next)
     treeCacheRef.current.set(norm(workspacePath), {
       tree: structuredClone(next),
-      expanded: [...expandedDirsRef.current],
+      expanded: expandedOverride ?? [...expandedDirsRef.current],
     })
-  }, [workspacePath])
+  }, [workspacePath, applyFileTree])
 
   const handleCopyPath = useCallback((fullPath: string) => {
     const rel = toRelPath(fullPath, workspacePath)
@@ -733,13 +744,17 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     const cached = treeCacheRef.current.get(nws)
     if (cached) {
       const restored = structuredClone(cached.tree)
-      fileTreeRef.current = restored
-      setFileTree(restored)
+      applyFileTree(restored)
       setExpandedDirs(new Set(cached.expanded))
+      // 源 workspace 的树可能已在别处被改动，恢复缓存后立刻重拉
+      if (dirtyWorkspacesRef.current.delete(normRoot(workspacePath))) {
+        void refreshAllExpanded(cached.expanded)
+      }
     } else {
+      dirtyWorkspacesRef.current.delete(normRoot(workspacePath))
       loadFileTree()
     }
-  }, [workspacePath, loadFileTree])
+  }, [workspacePath, loadFileTree, applyFileTree, refreshAllExpanded])
 
   // Reload file tree when filter rules change
   useEffect(() => {
@@ -1168,33 +1183,80 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     }, 600)
   }, [])
 
+  const refreshClipboard = useCallback(async (): Promise<ClipboardDescriptor | null> => {
+    try {
+      const desc = await window.api.clipboard.describe()
+      setClipboardDesc(desc)
+      return desc
+    } catch {
+      setClipboardDesc(null)
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshClipboard()
+    const onFocus = () => { void refreshClipboard() }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshClipboard])
+
+  const openFileContextMenu = useCallback((x: number, y: number, node: FileNode) => {
+    setFileContextMenu({ x, y, node })
+    void refreshClipboard()
+  }, [refreshClipboard])
+
   const handleCut = useCallback((node: FileNode) => {
     setFileContextMenu(null)
-    setFileClipboard({ path: node.path, name: node.name, operation: 'cut' })
+    void window.api.clipboard.write([node.path], 'cut').then(desc => setClipboardDesc(desc))
   }, [])
 
   const handleCopy = useCallback((node: FileNode) => {
     setFileContextMenu(null)
-    setFileClipboard({ path: node.path, name: node.name, operation: 'copy' })
+    void window.api.clipboard.write([node.path], 'copy').then(desc => setClipboardDesc(desc))
   }, [])
 
   const handlePaste = useCallback(async (destDir: string) => {
     setFileContextMenu(null)
-    if (!fileClipboard) return
+    if (!destDir) return
+    const desc = await refreshClipboard()
+    if (!desc || desc.paths.length === 0) return
+
     const sep = destDir.includes('\\') ? '\\' : '/'
     const destBase = destDir.replace(/[\\/]+$/, '')
-    const destPath = destBase + sep + fileClipboard.name
-    let result: { error?: string }
-    if (fileClipboard.operation === 'cut') {
-      result = await window.api.file.move(fileClipboard.path, destPath)
-    } else {
-      result = await window.api.file.copy(fileClipboard.path, destPath)
+    let srcDir: string | null = null
+    let movedAll = true
+
+    for (const p of desc.paths) {
+      const name = baseName(p)
+      if (!name) { movedAll = false; continue }
+      const destPath = destBase + sep + name
+      const result = desc.operation === 'cut'
+        ? await window.api.file.move(p, destPath)
+        : await window.api.file.copy(p, destPath)
+      if (result?.error) { movedAll = false; continue }
+      if (desc.operation === 'cut') srcDir = parentDirOf(p, workspacePath)
     }
-    if (!result.error) {
-      setFileClipboard(null)
-      await refreshDir(destDir)
+
+    if (desc.operation === 'cut' && movedAll) await window.api.clipboard.consume()
+
+    // 剪切后源目录不会自动刷新（远程没有 watcher），目标之后显式刷一次源目录
+    await refreshDir(destDir)
+    if (srcDir && norm(srcDir) !== norm(destDir)) {
+      const srcRoot = normRoot(srcDir)
+      const current = workspacePath ? normRoot(workspacePath) : ''
+      if (current && (srcRoot === current || srcRoot.startsWith(current + '/'))) {
+        await refreshDir(srcDir)
+      } else {
+        // 跨 workspace 剪切：源目录不在当前树里，把包含它的 workspace 缓存标脏，切回时重拉
+        for (const root of treeCacheRef.current.keys()) {
+          const r = normRoot(root)
+          if (srcRoot === r || srcRoot.startsWith(r + '/')) dirtyWorkspacesRef.current.add(r)
+        }
+      }
     }
-  }, [fileClipboard, refreshDir])
+    await refreshClipboard()
+  }, [refreshClipboard, refreshDir, workspacePath])
 
   const handleExternalDrop = useCallback((destDir: string, e: React.DragEvent) => {
     e.preventDefault()
@@ -1204,9 +1266,50 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
     if (paths.length > 0) onExternalFilesDrop?.(destDir, paths)
   }, [onExternalFilesDrop])
 
+  const focusFileTree = useCallback((e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) return
+    fileRootRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  // Ctrl+C / Ctrl+X / Ctrl+V 仅在 Dir 面板内、焦点属于文件树时生效
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!isActiveRef.current || confirmAction) return
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
+      const key = e.key.toLowerCase()
+      if (key !== 'c' && key !== 'x' && key !== 'v') return
+      const root = fileRootRef.current
+      const active = document.activeElement as HTMLElement | null
+      if (!root || !active) return
+      if (!root.parentElement?.contains(active)) return
+      if (active !== root && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable || active.closest('.xterm, .monaco-editor'))) return
+
+      if (key === 'v') {
+        const dest = selectedNode
+          ? (selectedNode.type === 'directory' ? selectedNode.path : parentDirOf(selectedNode.path, workspacePath))
+          : workspacePath
+        if (!dest) return
+        e.preventDefault()
+        e.stopPropagation()
+        void handlePaste(dest)
+        return
+      }
+      if (!selectedNode) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (key === 'c') handleCopy(selectedNode)
+      else handleCut(selectedNode)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [handleCopy, handleCut, handlePaste, selectedNode, workspacePath, confirmAction])
+
   return (
     <div
-      className={`flex-1 flex flex-col min-h-0 file-tab${brushActive ? ' brush-copy-mode' : ''}`}
+      ref={fileRootRef}
+      tabIndex={-1}
+      onMouseDown={focusFileTree}
+      className={`flex-1 flex flex-col min-h-0 outline-none focus:outline-none file-tab${brushActive ? ' brush-copy-mode' : ''}`}
       onDragOver={(e) => {
         if (!hasExternalFileDrag(e)) return
         e.preventDefault()
@@ -1279,11 +1382,15 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       )}
       <div
         className={`flex-1 min-h-0 overflow-y-auto file-tab__tree${workspacePath && externalDropDir && norm(externalDropDir) === norm(workspacePath) ? ' ring-1 ring-inset ring-ide-accent/60' : ''}`}
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest('.file-tree-item')) setSelectedNode(null)
+        }}
         onContextMenu={(e) => {
           if (!workspacePath) return
           e.preventDefault()
+          setSelectedNode(null)
           const rootNode: FileNode = { name: workspacePath.split(/[\\/]/).pop() || workspacePath, path: workspacePath, type: 'directory' }
-          setFileContextMenu({ x: e.clientX, y: e.clientY, node: rootNode })
+          openFileContextMenu(e.clientX, e.clientY, rootNode)
         }}
       >
         {workspacePath && editingState && editingState.nodePath === workspacePath && (
@@ -1340,7 +1447,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 onContextMenu={(e, node) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  setFileContextMenu({ x: e.clientX, y: e.clientY, node })
+                  setSelectedNode(node)
+                  openFileContextMenu(e.clientX, e.clientY, node)
                 }}
                 editingState={editingState}
                 onEditSubmit={handleEditSubmit}
@@ -1359,6 +1467,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 externalDropTarget={externalDropDir}
                 onExternalDragOver={setExternalDropDir}
                 onExternalDrop={handleExternalDrop}
+                selectedPath={selectedNode ? norm(selectedNode.path) : null}
+                onSelect={setSelectedNode}
               />
             ))}
           </div>
@@ -1411,7 +1521,8 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 onClick={async () => {
                   const { filePath } = confirmAction
                   setConfirmAction(null)
-                  await window.api.file.delete(filePath)
+                  const result = await window.api.file.delete(filePath)
+                  if (!result?.error) onFileDeleted?.(filePath)
                   const sep = filePath.includes('\\') ? '\\' : '/'
                   const parentDir = filePath.substring(0, filePath.lastIndexOf(sep))
                   await refreshDir(parentDir)
@@ -1427,6 +1538,9 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
       {/* Context Menu for file explorer */}
       {fileContextMenu && (() => {
         const isRoot = fileContextMenu.node.path === workspacePath
+        const pasteLabel = clipboardDesc && clipboardDesc.paths.length > 0
+          ? <>{t('Paste')} ({clipboardDesc.operation === 'cut' ? t('Move') : t('Copy')}: {baseName(clipboardDesc.paths[0])}{clipboardDesc.paths.length > 1 ? ` +${clipboardDesc.paths.length - 1}` : ''})</>
+          : null
         return (
         <div
           className="fixed bg-ide-bg border border-ide-border rounded shadow-lg py-1 z-50"
@@ -1454,11 +1568,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                   />
                 </>
               )}
-              {(fileClipboard || !isRoot) && <div className="border-t border-ide-border my-1" />}
-              {fileClipboard && (
+              {(pasteLabel || !isRoot) && <div className="border-t border-ide-border my-1" />}
+              {pasteLabel && (
                 <ContextMenuItem
                   icon={<ClipboardPaste className="ft-icon" />}
-                  label={<>{t('Paste')} ({fileClipboard.operation === 'cut' ? t('Move') : t('Copy')}: {fileClipboard.name})</>}
+                  label={pasteLabel}
                   onClick={() => handlePaste(fileContextMenu.node.path)}
                 />
               )}
@@ -1505,16 +1619,11 @@ export default function FileTab({ workspacePath, onOpenFileFromExplorer, onCompa
                 </>
               )}
               <div className="border-t border-ide-border my-1" />
-              {fileClipboard && (
+              {pasteLabel && (
                 <ContextMenuItem
                   icon={<ClipboardPaste className="ft-icon" />}
-                  label={<>{t('Paste')} ({fileClipboard.operation === 'cut' ? t('Move') : t('Copy')}: {fileClipboard.name})</>}
-                  onClick={() => {
-                    const p = fileContextMenu.node.path
-                    const sep = p.includes('\\') ? '\\' : '/'
-                    const idx = p.lastIndexOf(sep)
-                    handlePaste(idx > 0 ? p.slice(0, idx) : p)
-                  }}
+                  label={pasteLabel}
+                  onClick={() => handlePaste(parentDirOf(fileContextMenu.node.path, workspacePath))}
                 />
               )}
               <ContextMenuItem
