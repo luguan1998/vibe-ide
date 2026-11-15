@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, isDefaultSessionName, type Session, type SessionTab } from './sessionRestore'
+import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, isDefaultSessionName, isSshSession, type Session, type SessionTab } from './sessionRestore'
 import { hasSchedTask } from './schedStore'
 import type { SessionMode } from './components/DirectoryPicker'
 import SessionPanel, { type SessionPanelHandle } from './components/SessionPanel'
@@ -382,15 +382,18 @@ export default function App() {
   // 组序唯一真源：cwdStore 持久化的 groupOrder。会话增删只影响组内会话，不影响组序。
   const groupOrder = useGroupOrder()
   const emptyGroups = useEmptyGroups()
+  // SSH 会话不进 cwd 分组（远端路径不是工作区目录），对应面板「固定底部」的排布
   const effectiveGroupOrder = useMemo(
-    () => orderGroups(sessions.map(sessionGroupKey), groupOrder, emptyGroups),
+    () => orderGroups(sessions.filter(s => !isSshSession(s)).map(sessionGroupKey), groupOrder, emptyGroups),
     [sessions, groupOrder, emptyGroups],
   )
   useEffect(() => { cwdStore.setGroupOrder(effectiveGroupOrder) }, [effectiveGroupOrder])
-  // 按组序重排的会话数组：传面板与快捷键循环，组内会话保持原相对顺序
+  // 与面板视觉顺序一致：先按组序的非 SSH 会话，再底部 SSH 会话（各自保持原相对顺序）
   const stableSessions = useMemo(() => {
     const pos = new Map<string, number>(effectiveGroupOrder.map((k, i) => [k, i]))
-    return [...sessions].sort((a, b) => (pos.get(sessionGroupKey(a)) ?? Infinity) - (pos.get(sessionGroupKey(b)) ?? Infinity))
+    const nonSsh = sessions.filter(s => !isSshSession(s))
+    nonSsh.sort((a, b) => (pos.get(sessionGroupKey(a)) ?? Infinity) - (pos.get(sessionGroupKey(b)) ?? Infinity))
+    return [...nonSsh, ...sessions.filter(isSshSession)]
   }, [sessions, effectiveGroupOrder])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
     const id = initialWorkspace?.activeTabId ?? null
@@ -2741,7 +2744,7 @@ export default function App() {
     setSessions(prev => prev.filter(s => s.id !== id))
     // 关掉组内最后一个会话：保留空组卡（位置由 groupOrder 决定）
     const closing = sessions.find(s => s.id === id)
-    if (closing && !closing.sshConnectionId) {
+    if (closing && !isSshSession(closing)) {
       const key = sessionGroupKey(closing)
       if (!sessions.some(s => s.id !== id && sessionGroupKey(s) === key)) cwdStore.keepEmptyGroup(key)
     }
