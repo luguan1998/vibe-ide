@@ -2,6 +2,13 @@
   Starry Night — 梵高·星月夜
   基于 Van Gogh "The Starry Night" (1889)
   设计语言：蓝黄互补 · impasto 笔触 · 星光 halo · 漩涡有机曲线 · 不取纯黑
+
+  全应用背景图（参考 nailong.css）
+  ─────────────────────────────────────────────────
+  换图：改 --app-bg-image 的 url()（相对 snippets 目录）
+  通透度：--app-bg-alpha 越小，卡片/面板越透、图越明显
+  压暗：--app-bg-dim 越大整体越暗、文字越好读
+  生效：终端需「新开 session」（xterm 只在 mount 时读一次 --terminal-bg-image）
 */
 
 /* ════════════════════════════════════════════════════
@@ -27,10 +34,169 @@
   --selection-opacity: 0.25 !important;
   --monaco-margin-bg: 20 24 52 !important;
 
-  /* ── 终端背景图 ──
-     url() 支持相对路径（相对 snippets 目录），主进程自动转 file:// */
-  --terminal-bg-image: url('assets/night.jpg');
-  --terminal-bg-overlay: rgba(15, 18, 42, 0.7);
+  /* ── 全应用背景图 ──
+     url() 相对 snippets 目录，主进程自动转 file:// 绕过 dev 跨域 */
+  --app-bg-image: url('assets/night.jpg');
+  --app-bg-alpha: 0.5;
+  --app-bg-title-alpha: 0.4;
+  --app-bg-dim: 0.45;
+  --app-bg-text-alpha: 0.6;
+  --app-bg-center-alpha: 0.3;
+  /* 仅作「开」标记：xterm 因此走透明分支，图由下面的全屏层统一提供 */
+  --terminal-bg-image: none;
+}
+
+/* ════════════════════════════════════════════════════
+   全应用背景层 — 压暗并进同一层，静态不挂动画
+   ════════════════════════════════════════════════════ */
+html,
+body,
+#root {
+  background: transparent !important;
+}
+
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgb(var(--ide-bg) / var(--app-bg-dim)), rgb(var(--ide-bg) / var(--app-bg-dim))),
+    var(--app-bg-image);
+  background-size: 100% 100%, cover;
+  background-position: center, center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* ── 容器透明，让图一路透上来 ──────────────────────
+   globals.css 里这些是写死的实底，主题还会再刷一层，必须点名；
+   带 bg-ide-* 类的元素由下面那条半透明规则管 */
+#root > div {
+  background: transparent !important;
+}
+
+body :is(.session-panel, .session-panel__list-wrapper, .session-group,
+         .center-panel, .center-card, .ai-tab) {
+  background: transparent !important;
+}
+
+/* ── 卡片底色半透明 … :not() 把特异性顶高，排掉要实底/透明的元素 ── */
+body .bg-ide-bg {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
+}
+
+/* 会话行单独一档：名字是灰字，底要比按钮实。hover/选中/运行中仍走主题原样 */
+body .session-group .session-item:not(:hover):not(.session-item--active):not(.session-item--running) {
+  background-color: rgb(var(--ide-bg) / 0.7) !important;
+}
+
+body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group):not(.session-panel__quick-action) {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
+}
+
+body .bg-ide-panel {
+  background-color: rgb(var(--ide-panel) / var(--app-bg-alpha)) !important;
+}
+
+/* 搜索浮窗 / Markdown 编辑框保持实底：压在文字上，透底会与正文重叠 */
+#root .search-flyout,
+#root .search-flyout .bg-ide-sidebar,
+#root .md-search-bar {
+  background-color: rgb(var(--ide-sidebar)) !important;
+}
+#root .search-flyout .bg-ide-bg,
+#root .md-search-bar .bg-ide-bg,
+#root .md-block-editor {
+  background-color: rgb(var(--ide-bg)) !important;
+}
+
+/* AI 对话区标题条：去掉毛玻璃（底图在动/糊掉反而看不清），单走更透一档 */
+body .ai-tab__header {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-title-alpha)) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* 会话栏快捷按钮：不要默认底色，只留 hover / 激活反馈 */
+body .session-panel__quick-action {
+  background-color: transparent !important;
+}
+body .session-panel__quick-action:hover {
+  background-color: rgb(var(--ide-hover) / var(--app-bg-alpha)) !important;
+}
+body .session-panel__quick-action.bg-ide-accent\/15 {
+  background-color: rgb(var(--ide-accent) / 0.15) !important;
+}
+
+/* AI 思考区：原 bg-ide-accent/5 会透出底图，换同色实底混合 */
+body .ai-tab__thinking-content {
+  background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 5%) !important;
+}
+
+/* ── 文字区可读性 ───────────────────────────────
+   中间栏/右栏在面板层铺底，卡片 margin、圆角缺口也吃到同一层色；
+   左侧会话栏保持实底，不露出背景图 */
+body .center-panel:not(.center-panel--flush-left),
+body [data-panel="right"] {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha)) !important;
+}
+
+body .center-panel--flush-left {
+  background: linear-gradient(90deg, transparent 0 4px, rgb(var(--ide-bg) / var(--app-bg-center-alpha)) 4px) !important;
+}
+
+body :where(.center-panel ~ .cursor-col-resize) {
+  background-color: rgb(var(--ide-bg) / var(--app-bg-center-alpha));
+}
+
+body .session-panel {
+  background-color: rgb(var(--ide-bg)) !important;
+}
+
+/* 输入框比按钮实一档；占位符提回全值保读 */
+body .ai-tab__input-pill {
+  background-color: rgb(var(--ide-sidebar) / var(--app-bg-text-alpha)) !important;
+}
+body .ai-tab__input-pill textarea::placeholder {
+  color: rgb(var(--ide-text-muted)) !important;
+}
+
+/* 空状态胶囊按钮本身透明、灰字：补实底并提回正常文字色 */
+body .ai-tab__empty-gui button:not(.text-ide-accent),
+body .ai-tab__example-btn {
+  background-color: rgb(var(--ide-sidebar) / 0.3);
+  color: rgb(var(--ide-text));
+}
+body .ai-tab__empty-gui button:not(.text-ide-accent):hover {
+  background-color: rgb(var(--ide-hover) / 0.55);
+}
+
+body .md-preview :not(pre) > code {
+  background-color: color-mix(in srgb, rgb(var(--ide-bg)), rgb(var(--ide-accent)) 12%) !important;
+  border-color: rgb(var(--ide-accent) / 0.3) !important;
+}
+
+/* ── 终端底由 .center-panel 统一铺，内部保持透明 ── */
+body .term-view__canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Monaco 只给正文和行号自绘底色，diff gutter / inline 留白需要补实底 */
+.monaco-editor,
+.monaco-diff-editor,
+.monaco-diff-editor .gutter,
+.monaco-diff-editor .gutter .gutterItem,
+.diff-inline {
+  background-color: rgb(var(--ide-bg)) !important;
 }
 
 /* ════════════════════════════════════════════════════
@@ -65,7 +231,7 @@ textarea {
    标题栏 — 夜空最暗层
    ════════════════════════════════════════════════════ */
 .titlebar-drag {
-  background: linear-gradient(180deg, rgb(10 12 28), rgb(18 22 48)) !important;
+  background: linear-gradient(180deg, rgb(10 12 28 / 0.8), rgb(18 22 48 / 0.7)) !important;
 }
 
 /* 金色星光线 — 画在内容区顶边（.app__main border-t），
@@ -120,11 +286,11 @@ textarea {
   transition: opacity 0.2s !important;
 }
 .session-item:hover {
-  background: rgb(var(--ide-hover)) !important;
+  background: rgb(var(--ide-hover) / 0.85) !important;
 }
 .session-item--active {
   font-weight: 700;
-  background: rgb(var(--ide-active)) !important;
+  background: rgb(var(--ide-active) / 0.88) !important;
   border-left: none !important;
 }
 .session-item--active .session-item__name {
@@ -149,7 +315,7 @@ textarea {
 
 .session-group__header {
   border-bottom: none !important;
-  background: rgb(22 26 54) !important;
+  background: rgb(22 26 54 / 0.72) !important;
   position: relative !important;
   overflow: hidden !important;
 }
@@ -162,29 +328,18 @@ textarea {
 }
 
 /* ════════════════════════════════════════════════════
-   终端 — 背景图 + xterm 透明穿透
+   终端 — 底图走全屏层，这里只留边框
    ════════════════════════════════════════════════════ */
 .term-view__canvas {
   border: 1px solid rgb(var(--ide-border)) !important;
-  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
-  background-size: cover, cover !important;
-  background-position: center, center !important;
 }
 .term-view__header {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
-  background: linear-gradient(90deg, rgb(20 24 52), rgb(26 32 62), rgb(20 24 52)) !important;
+  background: linear-gradient(90deg, rgb(20 24 52 / 0.6), rgb(26 32 62 / 0.5), rgb(20 24 52 / 0.6)) !important;
 }
 .term-view__search {
   border: 1px solid rgb(var(--ide-border)) !important;
   background: rgb(18 22 48) !important;
-}
-
-/* xterm 透明兜底 */
-.xterm .xterm-viewport,
-.xterm .xterm-screen,
-.xterm .xterm-screen canvas {
-  background: transparent !important;
-  background-color: transparent !important;
 }
 
 /* ════════════════════════════════════════════════════
@@ -192,11 +347,11 @@ textarea {
    ════════════════════════════════════════════════════ */
 .file-tab__header {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
-  background: linear-gradient(90deg, rgb(20 24 52), rgb(26 32 62), rgb(20 24 52)) !important;
+  background: linear-gradient(90deg, rgb(20 24 52 / 0.6), rgb(26 32 62 / 0.5), rgb(20 24 52 / 0.6)) !important;
 }
 .file-tree-item--active {
   border-left: 3px solid rgb(var(--ide-accent)) !important;
-  background: rgb(var(--ide-active)) !important;
+  background: rgb(var(--ide-active) / 0.85) !important;
 }
 .file-tree-item--active .file-tree-item__name {
   color: rgb(var(--ide-accent-hover)) !important;
@@ -212,7 +367,7 @@ textarea {
 .file-tab__section { border-top: 2px solid rgb(40 42 70) !important; }
 .file-tab__section-header {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
-  background: rgb(22 26 54) !important;
+  background: rgb(22 26 54 / 0.75) !important;
   text-transform: none !important; letter-spacing: 0 !important;
   color: rgb(120 130 165) !important;
 }
@@ -222,7 +377,7 @@ textarea {
    ════════════════════════════════════════════════════ */
 .git-tab__header {
   border-bottom: 1px solid rgb(var(--ide-border)) !important;
-  background: linear-gradient(90deg, rgb(20 24 52), rgb(26 32 62), rgb(20 24 52)) !important;
+  background: linear-gradient(90deg, rgb(20 24 52 / 0.6), rgb(26 32 62 / 0.5), rgb(20 24 52 / 0.6)) !important;
 }
 .git-tab__branch-name {
   color: rgb(var(--ide-accent)) !important; font-weight: 700;
@@ -242,14 +397,14 @@ textarea {
   border-bottom: 1px solid rgb(32 34 56);
   transition: background 0.15s !important;
 }
-.git-tab__file-item:hover { background: rgb(var(--ide-hover)) !important; }
+.git-tab__file-item:hover { background: rgb(var(--ide-hover) / 0.85) !important; }
 .git-tab__commit-area {
   border-top: 2px solid rgb(var(--ide-border)) !important;
-  background: rgb(22 26 54) !important;
+  background: rgb(22 26 54 / 0.7) !important;
 }
-.git-tab__commit-input {
+body .git-tab__commit-input {
   border: 1px solid rgb(var(--ide-border)) !important;
-  background: rgb(12 14 34) !important;
+  background: rgb(12 14 34 / 0.8) !important;
   color: rgb(var(--ide-text)) !important;
 }
 .git-tab__commit-btn {
@@ -275,7 +430,7 @@ textarea {
 }
 .right-panel__tab--active {
   font-weight: 700 !important;
-  background: rgb(var(--ide-active)) !important;
+  background: rgb(var(--ide-active) / 0.85) !important;
   border-color: rgb(var(--ide-accent) / 0.4) !important;
   color: rgb(var(--ide-accent-hover)) !important;
 }
@@ -293,12 +448,15 @@ textarea {
 /* ════════════════════════════════════════════════════
    模态框 & 表单 — 金色 focus 光晕
    ════════════════════════════════════════════════════ */
+/* 弹窗/浮层压在正文上，保持实底，不透出背景图 */
 .fixed.inset-0.z-50 > div[class*="bg-ide-bg"] {
   border: 1px solid rgb(var(--ide-border)) !important;
+  background-color: rgb(var(--ide-bg)) !important;
   box-shadow: 0 0 30px rgba(10,12,30,0.7) !important;
 }
 .fixed[class*="bg-ide-bg"][class*="border"][class*="shadow"] {
   border: 1px solid rgb(var(--ide-border)) !important;
+  background-color: rgb(var(--ide-bg)) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
 }
 input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
@@ -324,7 +482,7 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
   background-repeat: no-repeat !important;
 }
 .session-item:not(.session-item--active).border-ide-accent\/60:hover {
-  background: rgb(var(--ide-hover)) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 30 30%27%3E%3Cdefs%3E%3CradialGradient id=%27pg%27 cx=%2750%25%27 cy=%2750%25%27 r=%2750%25%27%3E%3Cstop offset=%270%25%27 stop-color=%27%23ffdc5a%27 stop-opacity=%270.6%27/%3E%3Cstop offset=%27100%25%27 stop-color=%27%23ffc528%27 stop-opacity=%270%27/%3E%3C/radialGradient%3E%3CradialGradient id=%27pb%27 cx=%2750%25%27 cy=%2750%25%27 r=%2750%25%27%3E%3Cstop offset=%270%25%27 stop-color=%27%2364B5F6%27 stop-opacity=%270.35%27/%3E%3Cstop offset=%27100%25%27 stop-color=%27%231E88E5%27 stop-opacity=%270%27/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%2712%27 fill=%27url(%23pb)%27/%3E%3Cellipse cx=%2715%27 cy=%2715%27 rx=%2713%27 ry=%275%27 fill=%27none%27 stroke=%27%23ffc528%27 stroke-width=%271.5%27 transform=%27rotate(30,15,15)%27 opacity=%270.5%27/%3E%3Cellipse cx=%2715%27 cy=%2715%27 rx=%2713%27 ry=%275%27 fill=%27none%27 stroke=%27%23ffdc5a%27 stroke-width=%271%27 transform=%27rotate(90,15,15)%27 opacity=%270.4%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%2710%27 fill=%27none%27 stroke=%27%23ffc528%27 stroke-width=%271.2%27 stroke-dasharray=%273 6%27 transform=%27rotate(15,15,15)%27 opacity=%270.5%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%277%27 fill=%27none%27 stroke=%27%23ffdc5a%27 stroke-width=%271%27 stroke-dasharray=%272 4%27 transform=%27rotate(45,15,15)%27 opacity=%270.6%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%277%27 fill=%27url(%23pg)%27/%3E%3Crect x=%2713.5%27 y=%278%27 width=%273%27 height=%278%27 rx=%271%27 fill=%27%23ffc528%27 opacity=%270.6%27/%3E%3Cpolygon points=%2712,16 18,16 17,20 13,20%27 fill=%27%23ffdc5a%27 opacity=%270.7%27/%3E%3Crect x=%2714.5%27 y=%277%27 width=%271%27 height=%273%27 fill=%27%23ffc528%27 opacity=%270.4%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%271.5%27 fill=%27%23FFFFFF%27 opacity=%270.6%27/%3E%3C/svg%3E") right 6px center / 30px 30px no-repeat !important;
+  background: rgb(var(--ide-hover) / 0.85) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 30 30%27%3E%3Cdefs%3E%3CradialGradient id=%27pg%27 cx=%2750%25%27 cy=%2750%25%27 r=%2750%25%27%3E%3Cstop offset=%270%25%27 stop-color=%27%23ffdc5a%27 stop-opacity=%270.6%27/%3E%3Cstop offset=%27100%25%27 stop-color=%27%23ffc528%27 stop-opacity=%270%27/%3E%3C/radialGradient%3E%3CradialGradient id=%27pb%27 cx=%2750%25%27 cy=%2750%25%27 r=%2750%25%27%3E%3Cstop offset=%270%25%27 stop-color=%27%2364B5F6%27 stop-opacity=%270.35%27/%3E%3Cstop offset=%27100%25%27 stop-color=%27%231E88E5%27 stop-opacity=%270%27/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%2712%27 fill=%27url(%23pb)%27/%3E%3Cellipse cx=%2715%27 cy=%2715%27 rx=%2713%27 ry=%275%27 fill=%27none%27 stroke=%27%23ffc528%27 stroke-width=%271.5%27 transform=%27rotate(30,15,15)%27 opacity=%270.5%27/%3E%3Cellipse cx=%2715%27 cy=%2715%27 rx=%2713%27 ry=%275%27 fill=%27none%27 stroke=%27%23ffdc5a%27 stroke-width=%271%27 transform=%27rotate(90,15,15)%27 opacity=%270.4%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%2710%27 fill=%27none%27 stroke=%27%23ffc528%27 stroke-width=%271.2%27 stroke-dasharray=%273 6%27 transform=%27rotate(15,15,15)%27 opacity=%270.5%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%277%27 fill=%27none%27 stroke=%27%23ffdc5a%27 stroke-width=%271%27 stroke-dasharray=%272 4%27 transform=%27rotate(45,15,15)%27 opacity=%270.6%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%277%27 fill=%27url(%23pg)%27/%3E%3Crect x=%2713.5%27 y=%278%27 width=%273%27 height=%278%27 rx=%271%27 fill=%27%23ffc528%27 opacity=%270.6%27/%3E%3Cpolygon points=%2712,16 18,16 17,20 13,20%27 fill=%27%23ffdc5a%27 opacity=%270.7%27/%3E%3Crect x=%2714.5%27 y=%277%27 width=%271%27 height=%273%27 fill=%27%23ffc528%27 opacity=%270.4%27/%3E%3Ccircle cx=%2715%27 cy=%2715%27 r=%271.5%27 fill=%27%23FFFFFF%27 opacity=%270.6%27/%3E%3C/svg%3E") right 6px center / 30px 30px no-repeat !important;
 }
 
 /* 活跃会话项 — 右侧星月夜标志性金星（SVG 内嵌） */
@@ -511,13 +669,10 @@ input[type="checkbox"] { accent-color: rgb(var(--ide-accent)); }
 }
 
 /* ════════════════════════════════════════════════════
-   AiTab — 星月夜背景图（复用终端变量，overlay 压暗保可读）
+   AiTab — 透明，底图由全屏层统一提供
    ════════════════════════════════════════════════════ */
 .ai-tab {
   position: relative !important;
-  background-image: linear-gradient(var(--terminal-bg-overlay), var(--terminal-bg-overlay)), var(--terminal-bg-image) !important;
-  background-size: cover, cover !important;
-  background-position: center, center !important;
 }
 
 /* 预制提示词按钮 — 星光金色边框（--ide-border 在背景图上不可见） */
