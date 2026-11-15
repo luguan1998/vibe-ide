@@ -679,9 +679,18 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
 
   // 气泡 → 报文轮次绑定：只决定按钮画在哪；回退点用绑定到的 lineIdx
   const turnForMsg = useMemo(() => mapRealUserTurns(messages, userTurns, turnIndexFallback), [messages, userTurns, turnIndexFallback])
-  const boundTurnIdxOf = (rendererTurnIdx: number): number => {
-    const m = userMessages[rendererTurnIdx]
-    return m ? (turnForMsg.get(m)?.turnIdx ?? -1) : -1
+  // 每个 index 之前最近的、能对上报文轮次的用户气泡 → 结果/回答行归属的轮次。
+  // 忙碌中插话的气泡在转录里没有 user 轮次（CLI 折进当前回合），不能当成本轮气泡，
+  // 否则该轮最终的 fork 入口会直接消失，或指到插话那一轮。
+  const boundTurnBefore: number[] = new Array(messages.length)
+  {
+    let last = -1
+    for (let i = 0; i < messages.length; i++) {
+      boundTurnBefore[i] = last
+      if (!isRealUserInput(messages, i)) continue
+      const bound = turnForMsg.get(messages[i])
+      if (bound) last = bound.turnIdx
+    }
   }
 
   // 回合归属：index → turn（真实用户输入序号）
@@ -716,16 +725,6 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
   // 时间戳口径优先于 CLI 的 result.durationMs：历史会话没有 result 行也能显示耗时
   for (const s of turnStats) {
     if (s.startAt != null && s.endAt != null && s.endAt > s.startAt) s.durationMs = s.endAt - s.startAt
-  }
-
-  // 每个 index 之前的真实用户输入数（含当前）→ forkIdx = userCountBefore - 1
-  const userCountBefore: number[] = new Array(messages.length)
-  {
-    let count = 0
-    for (let i = 0; i < messages.length; i++) {
-      if (isRealUserInput(messages, i)) count++
-      userCountBefore[i] = count
-    }
   }
 
   const [expandedTurns, setExpandedTurns] = useState<Set<number>>(() => new Set())
@@ -923,10 +922,10 @@ export const MessageList = React.memo(function MessageList({ messages, userTurns
     let forkIdx = -1
     if (msg.type === 'result' && !msg.parentToolUseId) {
       copyText = resultCopyText.get(item.index)
-      if (allowHistory) forkIdx = boundTurnIdxOf(userCountBefore[item.index] - 1)
+      if (allowHistory) forkIdx = boundTurnBefore[item.index]
     } else if (isAnswer && !ongoing && msg.type === 'assistant' && selfMetaIdx.has(item.index)) {
       copyText = selfMetaCopyText.get(item.index) ?? (msg.content || undefined)
-      if (allowHistory) forkIdx = boundTurnIdxOf(userCountBefore[item.index] - 1)
+      if (allowHistory) forkIdx = boundTurnBefore[item.index]
     }
 
     return (

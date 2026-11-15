@@ -1358,6 +1358,14 @@ interface TranscriptParseResult {
   slashCommands: string[]
 }
 
+// 系统注入的伪用户消息（task 通知 / 跨会话消息 / superagent 上下文）同样会以
+// queued_command 出现在转录里，但不是用户敲的字，不能补成用户气泡
+function isInjectedPrompt(c: string): boolean {
+  return c.startsWith('<task-notification')
+    || c.startsWith('<cross-session-message')
+    || c.startsWith('[[superagent-')
+}
+
 // Parse transcript JSONL lines (main session or sub-agent sidecar) into AiMessage[].
 // Local toolUseIndex per call → no id collisions across main + sidecars. parentToolUseId
 // stamps sub-agent messages so MessageList groups them under the parent Agent tool_use.
@@ -1384,7 +1392,22 @@ function parseTranscriptLines(
     if (['permission-mode', 'file-history-snapshot', 'stream_event', 'content_block_delta',
       'content_block_start', 'content_block_stop', 'message_start', 'message_delta',
       'message_stop', 'keep_alive', 'control_cancel_request', 'tool_progress',
-      'permission_request', 'control_request', 'attachment'].includes(msg.type)) continue
+      'permission_request', 'control_request', 'attachment'].includes(msg.type)) {
+      // 忙碌中插话不落 user 行，只在转录里留一条 queued_command attachment（含发送时间与原话）。
+      // 实时渲染是本地气泡，重开历史时若不补，这句插话就像凭空消失。
+      if (msg.type === 'attachment' && msg.attachment?.type === 'queued_command') {
+        const prompt = typeof msg.attachment.prompt === 'string' ? msg.attachment.prompt.trim() : ''
+        if (prompt && !isInjectedPrompt(prompt)) {
+          messages.push({
+            sessionId: sid, type: 'user', role: 'user',
+            content: prompt,
+            timestamp: Date.parse(msg.attachment.timestamp || msg.timestamp) || Date.now(),
+            isRealUserTurn: true,
+          })
+        }
+      }
+      continue
+    }
 
     if (!allowSidechain && msg.isSidechain === true) continue
 

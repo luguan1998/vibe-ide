@@ -625,7 +625,20 @@ function initListeners() {
           ? [...merged, ...flushedMsg]
           : [...s0.messages, ...flushedMsg, msg]
       } else {
-        messages = [...s0.messages, ...flushedMsg, isAssistant ? { ...msg, thinkingDurationMs: thinkDuration } : msg]
+        const tail: AiMessage[] = [...flushedMsg, isAssistant ? { ...msg, thinkingDurationMs: thinkDuration } : msg]
+        // 插话时本地气泡先入列、被中断那一轮的 abort result 后到。不回插到气泡之前，
+        // 渲染层按"结果前最近的气泡"归轮次 → 点 A 轮回答的 fork 会分叉到插话的 B 轮
+        let userTailStart = s0.messages.length
+        if (isMainResult && s0.interjectingAt != null) {
+          while (userTailStart > 0) {
+            const m = s0.messages[userTailStart - 1]
+            if (m.type !== 'user' || m.role !== 'user') break
+            userTailStart--
+          }
+        }
+        messages = userTailStart < s0.messages.length
+          ? [...s0.messages.slice(0, userTailStart), ...tail, ...s0.messages.slice(userTailStart)]
+          : [...s0.messages, ...tail]
       }
       messages = dedupeThinking(messages)
 
