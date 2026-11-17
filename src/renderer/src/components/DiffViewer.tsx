@@ -735,6 +735,25 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     }
   }, [viewMode, loadForEdit])
 
+  // Monaco model 首帧以空内容创建，Windows 默认 EOL=CRLF；内容经 executeEdits 注入不重建 model，
+  // LF 文件的 getValue() 会被整篇改写成 CRLF —— SSH 远端 Linux 文件一保存即全文件污染。
+  // 内容落地后按文件真实换行拨回 model EOL（setEOL 同时把已污染缓冲归一）。
+  useEffect(() => {
+    const monaco = monacoRef.current
+    if (!monaco) return
+    const raw = savedContentRef.current
+    let eol: number
+    if (raw.includes('\r\n')) eol = monaco.editor.EndOfLineSequence.CRLF
+    else if (raw.includes('\n') || fullPath.startsWith('/')) eol = monaco.editor.EndOfLineSequence.LF
+    else return
+    const models = viewMode === 'diff'
+      ? [diffEditorRef.current?.getModifiedEditor?.()?.getModel?.(), diffEditorRef.current?.getOriginalEditor?.()?.getModel?.()]
+      : [editEditorRef.current?.getModel?.()]
+    for (const m of models) {
+      try { m?.setEOL?.(eol) } catch {}
+    }
+  }, [modifiedContent, viewMode, fullPath, editLoading, diffLoading])
+
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
