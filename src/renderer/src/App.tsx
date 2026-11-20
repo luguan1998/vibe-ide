@@ -3267,6 +3267,11 @@ export default function App() {
     window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel, start, end } }))
   }, [activeSessionCwd])
 
+  const handleAnnotateFileTab = useCallback((fullPath: string) => {
+    if (!fullPath) return
+    window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: { rel: toRelPath(fullPath, activeSessionCwd) } }))
+  }, [activeSessionCwd])
+
   const [mdScrollHeading, setMdScrollHeading] = useState<string | undefined>(undefined)
 
   // 处理从中间终端点击文件路径打开文件
@@ -3585,6 +3590,8 @@ export default function App() {
       dirtyMap={tabDirtyMap}
       recentFiles={recentFiles}
       onActivate={activateTab}
+      onAnnotateFile={handleAnnotateFileTab}
+      brushActive={brushActive}
       onRequestClose={requestCloseTabById}
       onDismissView={returnToBaseView}
       onOpenRecent={handleOpenRecentFile}

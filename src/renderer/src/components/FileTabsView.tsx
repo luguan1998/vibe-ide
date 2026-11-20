@@ -12,6 +12,8 @@ interface FileTabsViewProps {
   dirtyMap: Record<string, boolean>
   recentFiles: RecentFileEntry[]
   onActivate: (id: string) => void
+  onAnnotateFile: (fullPath: string) => void
+  brushActive: boolean
   onRequestClose: (id: string) => void
   onDismissView: () => void
   onOpenRecent: (fullPath: string, lineNumber?: number) => void
@@ -153,7 +155,7 @@ function RecentInline({
 }
 
 export function FileTabsView({
-  tabs, activeTabId, dirtyMap, recentFiles, onActivate, onRequestClose, onDismissView, onOpenRecent, popoverGuardRef, renderTab, t,
+  tabs, activeTabId, dirtyMap, recentFiles, onActivate, onAnnotateFile, brushActive, onRequestClose, onDismissView, onOpenRecent, popoverGuardRef, renderTab, t,
 }: FileTabsViewProps) {
   const stripRef = useRef<HTMLDivElement>(null)
 
@@ -191,7 +193,10 @@ export function FileTabsView({
                 key={tab.id}
                 data-tab-id={tab.id}
                 title={tabTooltip(tab)}
-                onClick={() => onActivate(tab.id)}
+                onClick={() => {
+                  if (brushActive) { onAnnotateFile(tab.fullPath); return }
+                  onActivate(tab.id)
+                }}
                 className={`group relative flex items-center gap-1 pl-2.5 pr-1.5 rounded-t-md text-[13px] cursor-pointer shrink-0 transition-colors file-tabs__tab ${
                   active
                     ? 'bg-ide-sidebar border-t border-x border-ide-border border-b-2 border-b-ide-accent h-7 text-ide-text'
@@ -233,7 +238,7 @@ export function FileTabsView({
         <RecentInline files={recentFiles} onOpen={onOpenRecent} popoverGuardRef={popoverGuardRef} t={t} />
       </div>
     )
-  }, [tabs, activeTabId, dirtyMap, recentFiles, onActivate, onRequestClose, onDismissView, onOpenRecent, popoverGuardRef, t])
+  }, [tabs, activeTabId, dirtyMap, recentFiles, onActivate, onAnnotateFile, brushActive, onRequestClose, onDismissView, onOpenRecent, popoverGuardRef, t])
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
