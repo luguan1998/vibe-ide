@@ -1863,8 +1863,6 @@ export default function App() {
   // OSC 标题变更回调：仅当用户未手动改过名时自动替换
   const handleOscTitleChange = useCallback(async (sessionId: string, title: string) => {
     if (manuallyRenamedRef.current.has(sessionId)) return
-    // SSH 会话名固定为主机名，不被远端 shell 的 OSC 标题（user@host: ~）覆盖
-    if (sessionsRef.current.find(s => s.id === sessionId)?.sshConnectionId) return
 
     // 去掉前缀 spinner/状态字符（CC 思考动画：✻⠐·等），保留正文
     // braille 区块 U+2800-U+28FF 覆盖所有盲文点字 spinner
@@ -1876,6 +1874,7 @@ export default function App() {
     if (/[\\\/]/.test(clean)) return       // 路径类（如 PowerShell 进程路径）
     const shellNames = ['powershell.exe', 'pwsh.exe', 'cmd.exe', 'bash.exe', 'wsl.exe', 'powershell', 'pwsh', 'cmd', 'bash', 'wsl']
     if (shellNames.includes(clean.toLowerCase())) return  // shell 已知名
+    if (/^[\w.-]+@[\w.-]+:/.test(clean)) return  // 远端 shell 提示符标题（user@host: ~）
 
     const result = await window.api.terminal.rename(sessionId, clean)
     if (result.success && result.session) {
