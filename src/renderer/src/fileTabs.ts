@@ -62,6 +62,7 @@ export interface TabSnapshot {
   dirty: boolean
   viewMode?: 'diff' | 'edit'
   encoding?: string
+  bom?: boolean
   line?: number
 }
 

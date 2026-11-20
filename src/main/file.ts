@@ -209,7 +209,7 @@ async function removeAcrossBackends(filePath: string): Promise<void> {
 function decodeBuffer(buffer: Buffer, encoding?: string, forceOpen?: boolean) {
   let targetEncoding: string
   let confidence = 1
-  let bom = false
+  const bom = detectBOM(buffer).bomLength > 0
 
   if (encoding) {
     targetEncoding = normalizeEncoding(encoding)
@@ -217,7 +217,6 @@ function decodeBuffer(buffer: Buffer, encoding?: string, forceOpen?: boolean) {
     const detected = autoDetectEncoding(buffer)
     targetEncoding = detected.encoding
     confidence = detected.confidence
-    bom = detected.bom
   }
 
   if (!forceOpen && !encoding && confidence < 0.1 && buffer.includes(0x00)) return null
@@ -339,10 +338,10 @@ export function registerFileHandlers(): void {
   })
 
   // Write file content with encoding support
-  ipcMain.handle(IPC_CHANNELS.FILE_WRITE_ENCODING, async (_event, filePath: string, content: string, encoding?: string) => {
+  ipcMain.handle(IPC_CHANNELS.FILE_WRITE_ENCODING, async (_event, filePath: string, content: string, encoding?: string, bom?: boolean) => {
     try {
       const targetEncoding = encoding ? normalizeEncoding(encoding) : DEFAULT_ENCODING
-      const buffer = iconv.encode(content, targetEncoding)
+      const buffer = iconv.encode(content, targetEncoding, bom ? { addBOM: true } : undefined)
       const relay = remoteRelay(filePath)
       if (relay) {
         await relay.request('fs.writeBase64', { path: filePath, base64: buffer.toString('base64') })

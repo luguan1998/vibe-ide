@@ -421,6 +421,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const justLoadedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [currentEncoding, setCurrentEncoding] = useState<string>(DEFAULT_ENCODING)
+  const [currentBom, setCurrentBom] = useState<boolean>(false)
   const [encodingInfo, setEncodingInfo] = useState<string>('')
   const [unreadableReason, setUnreadableReason] = useState<string>('')
 
@@ -598,11 +599,13 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       let original: string
       let modified: string
 
+      let worktreeEncoding: { encoding: string; bom: boolean } | undefined
       if (compareOriginalContent !== undefined) {
         // 文件对比模式：左侧 = 对比文件，右侧 = 当前文件
         original = compareOriginalContent
-        const result = await window.api.file.read(fullPath)
+        const result = await window.api.file.readWithEncoding(fullPath)
         modified = result.error ? '' : (result.content || '')
+        if (!result.error) worktreeEncoding = { encoding: result.encoding, bom: result.bom }
       } else if (commitHash) {
         // 查看历史 commit：左边是 parent 的文件内容，右边是 commit 时的文件内容
         const [parentResult, commitResult] = await Promise.all([
@@ -611,19 +614,27 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
         ])
         original = parentResult.error ? '' : parentResult.content
         modified = commitResult.error ? '' : (commitResult.content || '')
-      } else {
-        // Staged:   HEAD  vs INDEX  (git show '' = index)
-        // Unstaged: INDEX vs WORKTREE (file.read = working tree)
-        const [stagedResult, currResult] = await Promise.all([
-          isStaged
-            ? window.api.git.showFile('HEAD', filePath)
-            : window.api.git.showFile('', filePath),
-          isStaged
-            ? window.api.git.showFile('', filePath)
-            : window.api.file.read(fullPath)
+      } else if (isStaged) {
+        // Staged: HEAD vs INDEX (git show '' = index)
+        const [headResult, indexResult] = await Promise.all([
+          window.api.git.showFile('HEAD', filePath),
+          window.api.git.showFile('', filePath)
         ])
-        original = stagedResult.error ? '' : stagedResult.content
-        modified = currResult.error ? '' : (currResult.content || '')
+        original = headResult.error ? '' : headResult.content
+        modified = indexResult.error ? '' : (indexResult.content || '')
+      } else {
+        // Unstaged: INDEX vs WORKTREE (readWithEncoding = working tree)
+        const [indexResult, worktreeResult] = await Promise.all([
+          window.api.git.showFile('', filePath),
+          window.api.file.readWithEncoding(fullPath)
+        ])
+        original = indexResult.error ? '' : indexResult.content
+        modified = worktreeResult.error ? '' : (worktreeResult.content || '')
+        if (!worktreeResult.error) worktreeEncoding = { encoding: worktreeResult.encoding, bom: worktreeResult.bom }
+      }
+      if (worktreeEncoding) {
+        setCurrentEncoding(worktreeEncoding.encoding)
+        setCurrentBom(worktreeEncoding.bom)
       }
 
       const rs = restoreSnapRef.current
@@ -689,6 +700,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       } else {
         if (!keepBuffer) setModifiedContent(result.content)
         savedContentRef.current = result.content
+        setCurrentBom(!!result.bom)
         setUnreadableReason('')
         if (!encoding && !keepBuffer) {
           setCurrentEncoding(result.encoding)
@@ -742,10 +754,20 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     const monaco = monacoRef.current
     if (!monaco) return
     const raw = savedContentRef.current
-    let eol: number
-    if (raw.includes('\r\n')) eol = monaco.editor.EndOfLineSequence.CRLF
-    else if (raw.includes('\n') || fullPath.startsWith('/')) eol = monaco.editor.EndOfLineSequence.LF
-    else return
+    // 只看首个换行：\r 开头（CRLF 或裸 CR）判 CRLF，否则 LF。indexOf 在首个命中处停止，不扫全文。
+    const firstLf = raw.indexOf('\n')
+    const firstCr = raw.indexOf('\r')
+    let eol: number | null
+    if (firstCr !== -1 && (firstLf === -1 || firstCr < firstLf)) {
+      eol = monaco.editor.EndOfLineSequence.CRLF
+    } else if (firstLf !== -1) {
+      eol = monaco.editor.EndOfLineSequence.LF
+    } else if (fullPath.startsWith('/')) {
+      eol = monaco.editor.EndOfLineSequence.LF
+    } else {
+      eol = null
+    }
+    if (eol === null) return
     const models = viewMode === 'diff'
       ? [diffEditorRef.current?.getModifiedEditor?.()?.getModel?.(), diffEditorRef.current?.getOriginalEditor?.()?.getModel?.()]
       : [editEditorRef.current?.getModel?.()]
@@ -757,7 +779,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      await window.api.file.writeWithEncoding(fullPath, modifiedContent, currentEncoding)
+      await window.api.file.writeWithEncoding(fullPath, modifiedContent, currentEncoding, currentBom)
       if (onSaved) {
         await onSaved(filePath)
       }
@@ -766,7 +788,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     savedContentRef.current = modifiedContent
     setIsDirty(false)
     setSaving(false)
-  }, [fullPath, filePath, modifiedContent, currentEncoding, onSaved])
+  }, [fullPath, filePath, modifiedContent, currentEncoding, currentBom, onSaved])
 
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
@@ -795,9 +817,10 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       dirty: isDirtyRef.current,
       viewMode: viewModeRef.current,
       encoding: currentEncoding,
+      bom: currentBom,
       line: v && v.fullPath === fullPath ? v.line : undefined,
     }
-  }, [modifiedContent, currentEncoding, fullPath, visibleLineRef])
+  }, [modifiedContent, currentEncoding, currentBom, fullPath, visibleLineRef])
   const buildSnapshotRef = useRef(buildSnapshot)
   buildSnapshotRef.current = buildSnapshot
   const scrollPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -814,7 +837,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
   }, [pushSnapshot])
   useEffect(() => {
     pushSnapshot()
-  }, [isDirty, modifiedContent, viewMode, currentEncoding, pushSnapshot])
+  }, [isDirty, modifiedContent, viewMode, currentEncoding, currentBom, pushSnapshot])
   useEffect(() => () => {
     if (scrollPushTimerRef.current) clearTimeout(scrollPushTimerRef.current)
   }, [])
@@ -1231,7 +1254,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
     setEncodingContextMenu(null)
     setSaving(true)
     try {
-      await window.api.file.writeWithEncoding(fullPath, modifiedContent, encoding)
+      await window.api.file.writeWithEncoding(fullPath, modifiedContent, encoding, currentBom)
       setCurrentEncoding(encoding)
       setEncodingInfo('')
       savedContentRef.current = modifiedContent
@@ -1239,7 +1262,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       if (onSaved) await onSaved(filePath)
     } catch {}
     setSaving(false)
-  }, [fullPath, filePath, modifiedContent, onSaved])
+  }, [fullPath, filePath, modifiedContent, currentBom, onSaved])
 
   const diffOptions = useMemo(() => ({
     // addExtraSpaceOnTop 默认按 Ctrl+F 在首行上方插入 view zone；短文件 scrollTop 钳制后
@@ -1337,7 +1360,7 @@ const DiffViewer = React.memo(function DiffViewer({ filePath, fullPath, isStaged
       if (pos) modEd.setPosition(pos)
       const val = modEd.getValue()
       setModifiedContent(val)
-      await window.api.file.writeWithEncoding(fullPath, val, currentEncoding)
+      await window.api.file.writeWithEncoding(fullPath, val, currentEncoding, currentBom)
       savedContentRef.current = val
       setIsDirty(false)
       if (onSaved) await onSaved(filePath)

@@ -112,7 +112,7 @@ declare global {
         read: (filePath: string) => Promise<any>
         write: (filePath: string, content: string | Uint8Array) => Promise<any>
         readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
-        writeWithEncoding: (filePath: string, content: string, encoding?: string) => Promise<{ success: boolean; error?: string }>
+        writeWithEncoding: (filePath: string, content: string, encoding?: string, bom?: boolean) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
         getDrives: () => Promise<string[]>
         getPathForFile: (file: File) => string
@@ -3414,7 +3414,7 @@ export default function App() {
     if (contentOverride !== undefined) {
       compareContent = contentOverride
     } else {
-      const compareResult = await window.api.file.read(compareFullPath)
+      const compareResult = await window.api.file.readWithEncoding(compareFullPath)
       compareContent = compareResult.error ? '' : (compareResult.content || '')
     }
     openFileView(baseTab.fullPath, {

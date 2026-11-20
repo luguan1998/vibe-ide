@@ -280,6 +280,8 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
 
   const [editingBlock, setEditingBlock] = useState<{ start: number; end: number; rect: { top: number; left: number; width: number } } | null>(null)
   const [savedRawContent, setSavedRawContent] = useState('')
+  const fileEncodingRef = useRef('utf-8')
+  const fileBomRef = useRef(false)
   const isDirty = rawContent !== savedRawContent
   const editingBlockRef = useRef(editingBlock)
   editingBlockRef.current = editingBlock
@@ -412,7 +414,7 @@ const MarkdownPreview = React.memo(function MarkdownPreview({
 
   const handleSaveFile = useCallback(async () => {
     if (!isDirty) return
-    await window.api.file.write(fullPath, rawContent)
+    await window.api.file.writeWithEncoding(fullPath, rawContent, fileEncodingRef.current, fileBomRef.current)
     setSavedRawContent(rawContent)
   }, [isDirty, fullPath, rawContent])
 
@@ -698,7 +700,7 @@ ${clone.innerHTML}
         if (newContent && !newContent.endsWith('\n')) newContent += nl
         newContent += joinedLinks + nl
       }
-      const writeResult = await window.api.file.write(fullPath, newContent)
+      const writeResult = await window.api.file.writeWithEncoding(fullPath, newContent, fileEncodingRef.current, fileBomRef.current)
       if (writeResult?.error) throw new Error(writeResult.error)
       setRawContent(newContent)
       setSavedRawContent(newContent)
@@ -783,7 +785,7 @@ ${clone.innerHTML}
     setLoading(true)
     setError(null)
     setEditingBlock(null)
-    window.api.file.read(fullPath).then((result: any) => {
+    window.api.file.readWithEncoding(fullPath).then((result: any) => {
       if (cancelled) return
       if (result.error) {
         setError(result.error)
@@ -791,7 +793,9 @@ ${clone.innerHTML}
         setFrontmatter(null)
         setBodyStart(0)
       } else {
-        const raw = typeof result === 'string' ? result : result.content || ''
+        fileEncodingRef.current = result.encoding || 'utf-8'
+        fileBomRef.current = !!result.bom
+        const raw = result.content || ''
         const { meta, bodyStart: bs } = locateBody(raw)
         const rs = restoreSnapRef.current
         if (restorePendingRef.current && rs?.dirty && rs.buffer !== undefined) {

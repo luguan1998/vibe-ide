@@ -906,10 +906,12 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
   const groupQuickNewSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [groupMenu, setGroupMenu] = useState<{ x: number; y: number; cwd: string } | null>(null)
   const [groupCloseAsk, setGroupCloseAsk] = useState<{ cwd: string; count: number } | null>(null)
-  const quickNewCwd = sessions.find(s => s.id === activeSessionId)?.cwd
+  const quickNewSession = sessions.find(s => s.id === activeSessionId)
   const handleQuickNewSession = (mode: SessionMode) => {
-    if (quickNewCwd && onNewSessionHere) onNewSessionHere(quickNewCwd, mode)
-    else onCreateSession(termType)
+    if (!quickNewSession?.cwd || !onNewSessionHere) { onCreateSession(termType); return }
+    // GUI/pi 是本地子进程，远端 cwd 起不来：SSH 会话下恒建远端终端
+    if (isSshSession(quickNewSession)) onNewSessionHere(quickNewSession.cwd, 'term', quickNewSession.sshConnectionId)
+    else onNewSessionHere(quickNewSession.cwd, mode)
   }
   const [cloneSubmenu, setCloneSubmenu] = useState<{ x: number; y: number; sessionId: string; cwd: string; shell?: string; initCommands: CustomCommand[] } | null>(null)
   const cloneSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)

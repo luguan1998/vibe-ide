@@ -71,17 +71,16 @@ export function parseFilePath(pathText: string, cwd: string): { fullPath: string
 
   let fullPath: string
   if (isWinAbsolute) {
-    fullPath = pathPart
+    fullPath = pathPart.replace(/\//g, '\\')
   } else if (isUnixAbsolute) {
+    // SSH 远端 POSIX 路径保持正斜杠，远端根只认 / 开头
     fullPath = pathPart
   } else if (cwd) {
-    fullPath = cwd.replace(/\\/g, '/') + '/' + pathPart.replace(/\\/g, '/')
+    const sep = /^[A-Za-z]:[\\/]/.test(cwd) ? '\\' : '/'
+    fullPath = cwd.replace(/[\\/]+$/, '') + sep + pathPart.replace(/[\\/]/g, sep)
   } else {
     return null
   }
-
-  // 统一路径分隔符（Windows 使用反斜杠）
-  fullPath = fullPath.replace(/\//g, '\\')
 
   return { fullPath, lineNumber }
 }
