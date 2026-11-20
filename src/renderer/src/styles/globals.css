@@ -778,12 +778,12 @@ html, body, #root {
 .ft-fname { font-size: var(--ft-fname-size, 13px); }
 .ft-icon  { width: var(--ft-icon-size, 14px); height: var(--ft-icon-size, 14px); }
 
-/* 行内 hover 才显示的操作按钮 — 手写 CSS 不依赖 tailwind group utility（HMR 掉 utility 会致按钮常显） */
+/* 行内 hover 才显示的操作按钮 — display 切换不占位，避免长目录名被提前截断（手写 CSS 不依赖 tailwind group utility） */
 .file-tree-item .row-action,
-[data-recent-idx] .row-action { opacity: 0; transition: opacity 120ms ease-out; }
+[data-recent-idx] .row-action { display: none; }
 .file-tree-item:hover .row-action,
 .file-tree-item:focus-within .row-action,
-[data-recent-idx]:hover .row-action { opacity: 1; }
+[data-recent-idx]:hover .row-action { display: flex; }
 
 /* 目录标题栏 hover 才显示的操作 — display 切换，不占位，避免挤掉目录名 */
 .file-tab__header .header-action { display: none; }
