@@ -945,7 +945,8 @@ export interface AiSessionState {
   worktreePath?: string
   worktreeBranch?: string
   pipedPrompt?: string
-  // 会话级 GUI 操控开关，仅对话开始前在 AiTab 头部点亮，不落盘、不恢复；
+  // 会话级 GUI 操控开关，仅对话开始前在 AiTab 头部点亮；不落盘，
+  // 恢复会话时按转录里是否用过 mcp__vibe* 工具推断；
   // 切换会 destroy+重 spawn CLI，会话产生消息后按钮隐藏
   computerUse?: boolean
   browserUse?: boolean

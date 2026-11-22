@@ -1645,6 +1645,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     const { cliCommand, configDir } = readAiCliConfig()
                     const history = await window.api.ai.loadSessionMessages(s.session_id || s.id, workspacePath || '', configDir)
                     const sessionName = s.name && s.name !== s.session_id ? s.name : ''
+                    const computerUse = history.computerUse === true
+                    const browserUse = history.browserUse === true
                     updateSession(activeSessionId, () => ({
                       ...EMPTY_SESSION,
                       messages: history.messages,
@@ -1653,6 +1655,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       name: sessionName,
                       cwd: workspacePath || '',
                       ready: false,
+                      computerUse,
+                      browserUse,
                     }))
                     await window.api.ai.destroy(activeSessionId)
                     window.api.ai.create({
@@ -1664,6 +1668,8 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                       resumeSessionId: s.session_id || s.id,
                       ...(cliCommand ? { cliCommand } : {}),
                       ...(configDir ? { configDir } : {}),
+                      computerUse,
+                      browserUse,
                     })
                   }
                 }}

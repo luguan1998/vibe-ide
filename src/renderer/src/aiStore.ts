@@ -312,8 +312,10 @@ export const aiStore = {
         }))
         return
       }
-      const finish = (messages: any[], model: string, slashCommands: any[], actualCwd?: string) => {
+      const finish = (messages: any[], model: string, slashCommands: any[], actualCwd?: string, detectedComputerUse?: boolean, detectedBrowserUse?: boolean) => {
         const createCwd = actualCwd || opts.cwd
+        const computerUse = opts.computerUse ?? detectedComputerUse
+        const browserUse = opts.browserUse ?? detectedBrowserUse
         window.api.ai.create({
           sessionId: sid,
           cwd: createCwd,
@@ -326,8 +328,8 @@ export const aiStore = {
           ...(opts.enableWorktree ? { enableWorktree: true } : {}),
           ...(opts.worktreePath ? { worktreePath: opts.worktreePath } : {}),
           ...(opts.model ? { model: opts.model } : {}),
-          ...(opts.computerUse ? { computerUse: true } : {}),
-          ...(opts.browserUse ? { browserUse: true } : {}),
+          ...(computerUse !== undefined ? { computerUse } : {}),
+          ...(browserUse !== undefined ? { browserUse } : {}),
         })
         aiStore.updateSession(sid, (s) => ({
           ...EMPTY_SESSION,
@@ -336,8 +338,8 @@ export const aiStore = {
           messages,
           model,
           slashCommands: enrichSlashCommands(slashCommands),
-          computerUse: s.computerUse,
-          browserUse: s.browserUse,
+          computerUse: computerUse ?? s.computerUse,
+          browserUse: browserUse ?? s.browserUse,
           // resume/fork 后轮次下标域不变（parseUserTurns 全文件域），
           // 保留历史变更数据，否则该会话"回退代码"永远空转
           fileChangesByTurn: s.fileChangesByTurn,
@@ -347,7 +349,7 @@ export const aiStore = {
         // CLI --resume 不重放历史事件流，须先从 JSONL 预填历史（与 resumeSession 一致），
         // 否则 fork/恢复的新会话渲染空白。pi 的历史由主进程 get_messages 回放。
         window.api.ai.loadSessionMessages(opts.resumeSessionId, opts.cwd, configDir)
-          .then((history: any) => finish(history?.messages || [], history?.model || '', history?.slashCommands || [], history?.actualCwd))
+          .then((history: any) => finish(history?.messages || [], history?.model || '', history?.slashCommands || [], history?.actualCwd, history?.computerUse, history?.browserUse))
           .catch(() => finish([], '', []))
       } else {
         finish([], '', [])
@@ -383,12 +385,16 @@ export const aiStore = {
     let slashCommands: any[] = []
     let resumeCwd = cwd
     let actualCwd: string | undefined
+    let detectedComputerUse = false
+    let detectedBrowserUse = false
     try {
       const history = await window.api.ai.loadSessionMessages(historySessionId, resumeCwd, configDir)
       messages = history.messages || []
       model = history.model || ''
       slashCommands = history.slashCommands || []
       actualCwd = history.actualCwd
+      detectedComputerUse = history.computerUse === true
+      detectedBrowserUse = history.browserUse === true
     } catch {}
     // 如果传入的 cwd 找不到 JSONL，可能持久化里存的是 UI 目录而不是会话实际目录
     // （例如 worktree / 子目录启动）。尝试从全量历史里按 session_id 找到真实 cwd 再试一次。
@@ -403,10 +409,14 @@ export const aiStore = {
           model = history.model || ''
           slashCommands = history.slashCommands || []
           actualCwd = history.actualCwd
+          detectedComputerUse = history.computerUse === true
+          detectedBrowserUse = history.browserUse === true
         }
       } catch {}
     }
     // 如果确实找不到 JSONL，才降级为新建空白 GUI，避免 CLI 报 “No conversation found”。
+    const computerUse = opts.computerUse ?? detectedComputerUse
+    const browserUse = opts.browserUse ?? detectedBrowserUse
     const resumed = messages.length > 0
     // 用 JSONL 首行记录的真实 cwd 发起 CLI —— 入参 cwd 可能与真实 cwd 不一致
     // （worktree/符号链接/大小写/尾部斜杠），CLI 推 projectDir 会落空而当成新会话。
@@ -421,8 +431,8 @@ export const aiStore = {
       ...(resumed ? { resumeSessionId: historySessionId } : {}),
       ...(cliCommand ? { cliCommand } : {}),
       ...(configDir ? { configDir } : {}),
-      ...(opts.computerUse ? { computerUse: true } : {}),
-      ...(opts.browserUse ? { browserUse: true } : {}),
+      computerUse,
+      browserUse,
     })
     aiStore.updateSession(sid, (s) => ({
       ...EMPTY_SESSION,
@@ -433,8 +443,8 @@ export const aiStore = {
       cwd: createCwd,
       ready: false,
       fileChangesByTurn: s.fileChangesByTurn,
-      computerUse: s.computerUse,
-      browserUse: s.browserUse,
+      computerUse,
+      browserUse,
     }))
     return { resumed, cwd: createCwd }
   },
@@ -777,7 +787,7 @@ function initListeners() {
   })
 
   // ── onReady ──
-  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, worktreeBranch, thinkingLevel }: any) => {
+  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, worktreeBranch, thinkingLevel, computerUse, browserUse }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])
     aiStore.updateSession(sessionId, (s) => ({
       // spawn 时的空壳 ready（及 revert 的 slashCommands:[]）不得清空已扫出的命令表
@@ -787,6 +797,8 @@ function initListeners() {
       // CLI 在 ready 后才建树，晚轮询命中会用同一条 ready 事件补发，这里合并保留
       worktreeBranch: worktreeBranch || s.worktreeBranch,
       thinkingLevel: thinkingLevel || s.thinkingLevel,
+      ...(typeof computerUse === 'boolean' ? { computerUse } : {}),
+      ...(typeof browserUse === 'boolean' ? { browserUse } : {}),
     }))
     if ((sessionStates[sessionId]?.backend ?? 'claude') === 'claude') aiStore.refreshUserTurns(sessionId)
   })
@@ -803,6 +815,9 @@ function initListeners() {
         slashCommands: s.slashCommands,
         ready: true,
         fileChangesByTurn: s.fileChangesByTurn,
+        // 主进程免 resume 重开时沿用原 MCP 配置，state 不能把开关清掉
+        computerUse: s.computerUse,
+        browserUse: s.browserUse,
       }))
       return
     }

@@ -13,6 +13,7 @@ import {
   piThinkingLevels, setPiThinkingLevel, piSessionCwd,
 } from './pi'
 import { IPC_CHANNELS, AI_FILE_EDIT_TOOLS, DEFAULT_AI_CONTEXT_WINDOW, asToolArray } from '../shared/types'
+import { guiToolKind } from '../shared/guiTools'
 import type { AiBackend, AiCreateOptions, AiToolUse, AiToolResult, AiMessage, AiSendPayload, AiPermissionResponsePayload, AiPermissionMode, AiSetPermissionModePayload, AiSetModelPayload, AiSideQuestionPayload, AiSetContextWindowPayload, AiSlashCommand, UserTurn, AiReply, AiSessionSummary } from '../shared/types'
 
 // 其余主进程模块（ai-plan-execute/ai-revert/index）仍从 './ai' 取这两个
@@ -1356,6 +1357,8 @@ interface TranscriptParseResult {
   messages: AiMessage[]
   model: string
   slashCommands: string[]
+  computerUse: boolean
+  browserUse: boolean
 }
 
 // 系统注入的伪用户消息（task 通知 / 跨会话消息 / superagent 上下文）同样会以
@@ -1381,6 +1384,8 @@ function parseTranscriptLines(
   const messages: AiMessage[] = []
   let model = ''
   const slashCommands: string[] = []
+  let computerUse = false
+  let browserUse = false
   const toolUseIndex = new Map<string, { msgIdx: number; toolIdx: number }>()
   const allowSidechain = opts.allowSidechain ?? false
 
@@ -1451,6 +1456,9 @@ function parseTranscriptLines(
         else if (block.type === 'tool_use') {
           const tu: AiToolUse = { id: block.id, name: block.name, input: block.input }
           toolUses.push(tu)
+          const guiKind = guiToolKind(block.name)
+          if (guiKind === 'computerUse') computerUse = true
+          else if (guiKind === 'browserUse') browserUse = true
           toolUseIndex.set(block.id, { msgIdx: messages.length, toolIdx: toolUses.length - 1 })
         }
       }
@@ -1529,7 +1537,7 @@ function parseTranscriptLines(
     }
   }
 
-  return { messages, model, slashCommands }
+  return { messages, model, slashCommands, computerUse, browserUse }
 }
 
 // Recursively inline sub-agent sidecar transcripts under their parent Agent tool_use.
@@ -1543,7 +1551,8 @@ async function inlineSubagents(
   messages: AiMessage[],
   projectDir: string,
   parentSessionId: string,
-  depth: number
+  depth: number,
+  guiUsage: { computerUse: boolean; browserUse: boolean },
 ): Promise<void> {
   if (depth > 5) return
 
@@ -1563,8 +1572,10 @@ async function inlineSubagents(
         parentToolUseId: tool.id,
         allowSidechain: true,
       })
+      guiUsage.computerUse ||= parsed.computerUse
+      guiUsage.browserUse ||= parsed.browserUse
       insertions.push({ afterIdx: i, msgs: parsed.messages })
-      await inlineSubagents(parsed.messages, projectDir, parentSessionId, depth + 1)
+      await inlineSubagents(parsed.messages, projectDir, parentSessionId, depth + 1, guiUsage)
     }
   }
 
@@ -1577,11 +1588,13 @@ export async function loadSessionMessagesFromProject(resumeSessionId: string, pr
   messages: AiMessage[]
   model: string
   slashCommands: string[]
+  computerUse: boolean
+  browserUse: boolean
   actualCwd?: string
 }> {
   const jsonlPath = join(projectDir, `${resumeSessionId}.jsonl`)
   let content: string
-  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [], actualCwd: undefined } }
+  try { content = await readFile(jsonlPath, 'utf-8') } catch { return { messages: [], model: '', slashCommands: [], computerUse: false, browserUse: false, actualCwd: undefined } }
 
   const lines = content.split('\n').filter(Boolean)
   let actualCwd: string | undefined
@@ -1592,19 +1605,22 @@ export async function loadSessionMessagesFromProject(resumeSessionId: string, pr
   for (const t of parseUserTurns(lines)) turnByLine.set(t.lineIdx, t)
 
   const parsed = parseTranscriptLines(lines, resumeSessionId, { allowSidechain: false, turnByLine })
-  await inlineSubagents(parsed.messages, projectDir, resumeSessionId, 0)
+  const guiUsage = { computerUse: parsed.computerUse, browserUse: parsed.browserUse }
+  await inlineSubagents(parsed.messages, projectDir, resumeSessionId, 0, guiUsage)
 
-  return { messages: parsed.messages, model: parsed.model, slashCommands: parsed.slashCommands, actualCwd }
+  return { messages: parsed.messages, model: parsed.model, slashCommands: parsed.slashCommands, ...guiUsage, actualCwd }
 }
 
 async function loadSessionMessages(resumeSessionId: string, cwd: string, configDir?: string): Promise<{
   messages: AiMessage[]
   model: string
   slashCommands: string[]
+  computerUse: boolean
+  browserUse: boolean
   actualCwd?: string
 }> {
   const projectDir = resolveProjectDir(cwd, configDir)
-  if (!projectDir) return { messages: [], model: '', slashCommands: [], actualCwd: undefined }
+  if (!projectDir) return { messages: [], model: '', slashCommands: [], computerUse: false, browserUse: false, actualCwd: undefined }
   return loadSessionMessagesFromProject(resumeSessionId, projectDir)
 }
 
