@@ -787,7 +787,7 @@ function initListeners() {
   })
 
   // ── onReady ──
-  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, worktreeBranch, thinkingLevel, computerUse, browserUse }: any) => {
+  window.api.ai.onReady(({ sessionId, slashCommands, model, worktreePath, worktreeBranch, thinkingLevel }: any) => {
     const commands = enrichSlashCommands(slashCommands || [])
     aiStore.updateSession(sessionId, (s) => ({
       // spawn 时的空壳 ready（及 revert 的 slashCommands:[]）不得清空已扫出的命令表
@@ -797,8 +797,6 @@ function initListeners() {
       // CLI 在 ready 后才建树，晚轮询命中会用同一条 ready 事件补发，这里合并保留
       worktreeBranch: worktreeBranch || s.worktreeBranch,
       thinkingLevel: thinkingLevel || s.thinkingLevel,
-      ...(typeof computerUse === 'boolean' ? { computerUse } : {}),
-      ...(typeof browserUse === 'boolean' ? { browserUse } : {}),
     }))
     if ((sessionStates[sessionId]?.backend ?? 'claude') === 'claude') aiStore.refreshUserTurns(sessionId)
   })

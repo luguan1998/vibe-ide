@@ -4,7 +4,6 @@ import { join, resolve, sep } from 'path'
 import { IPC_CHANNELS, type AiMessage, type AiSearchOptions, type AiSearchMatch, type AiSessionSearchGroup, type AiSessionSummary, type AiSlashCommand } from '../../shared/types'
 import { asRecord, stringField, textFromContent } from './protocol'
 import { piRecordToMessage } from './messages'
-import { guiToolKind } from '../../shared/guiTools'
 import { buildMatchSnippet } from '../ai'
 import { resolvePiAgentDir } from './process'
 
@@ -208,8 +207,8 @@ async function searchPiSessions(query: string, opts?: AiSearchOptions): Promise<
   return { sessions: results, truncated }
 }
 
-export async function loadPiSessionMessages(sessionId: string, projectDir: string): Promise<{ messages: AiMessage[]; model: string; slashCommands: AiSlashCommand[]; computerUse: boolean; browserUse: boolean }> {
-  const empty = { messages: [] as AiMessage[], model: '', slashCommands: [] as AiSlashCommand[], computerUse: false, browserUse: false }
+async function loadPiSessionMessages(sessionId: string, projectDir: string): Promise<{ messages: AiMessage[]; model: string; slashCommands: AiSlashCommand[] }> {
+  const empty = { messages: [] as AiMessage[], model: '', slashCommands: [] as AiSlashCommand[] }
   if (!/^[A-Za-z0-9_-]+$/.test(sessionId) || !isWithinRoot(projectDir)) return empty
   const files = await readdir(projectDir).catch(() => [] as string[])
   const file = files.find((f) => f.endsWith(`_${sessionId}.jsonl`))
@@ -217,23 +216,14 @@ export async function loadPiSessionMessages(sessionId: string, projectDir: strin
   let lines: string[]
   try { lines = (await readFile(join(projectDir, file), 'utf-8')).split('\n').filter(Boolean) } catch { return empty }
   const messages: AiMessage[] = []
-  let computerUse = false
-  let browserUse = false
   for (let i = 0; i < lines.length; i++) {
     let rec: any
     try { rec = JSON.parse(lines[i]) } catch { continue }
     if (rec?.type !== 'message') continue
     const mapped = piRecordToMessage(rec.message, `pi-file-${i}`)
-    if (mapped) {
-      for (const tool of mapped.toolUse || []) {
-        const kind = guiToolKind(tool.name)
-        if (kind === 'computerUse') computerUse = true
-        else if (kind === 'browserUse') browserUse = true
-      }
-      messages.push({ sessionId, ...mapped })
-    }
+    if (mapped) messages.push({ sessionId, ...mapped })
   }
-  return { messages, model: sessionModel(lines), slashCommands: [], computerUse, browserUse }
+  return { messages, model: sessionModel(lines), slashCommands: [] }
 }
 
 async function deletePiSession(sessionId: string, projectDir: string): Promise<{ success: boolean; error?: string }> {

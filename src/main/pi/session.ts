@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto'
 import type { ChildProcess } from 'child_process'
 import { app } from 'electron'
-import { dirname, join } from 'path'
+import { join } from 'path'
 import { IPC_CHANNELS, type AiCreateOptions, type AiMessage, type AiPermissionRequest } from '../../shared/types'
 import { mcpUsageHint, send } from '../ai-shared'
 import { startForSession as startCuSession, stopForSession as stopCuSession } from '../computer-use'
 import { startForSession as startBmSession, stopForSession as stopBmSession } from '../browser-use'
-import { findPiSessionFile, loadPiSessionMessages } from './history'
 import { PiRpc } from './rpc'
 import { attachPiLineReader, findPiBinary, killPiProcess, spawnPi, writePiLine } from './process'
 import {
@@ -118,14 +117,6 @@ export async function createPiSession(options: AiCreateOptions): Promise<{ succe
     send(IPC_CHANNELS.AI_ERROR, { sessionId: options.sessionId, error: resolved.error, installCmd: resolved.installCmd })
     return { success: false, error: resolved.error, installCmd: resolved.installCmd }
   }
-  if (options.resumeSessionId && (options.computerUse === undefined || options.browserUse === undefined)) {
-    const file = await findPiSessionFile(options.resumeSessionId)
-    if (file) {
-      const usage = await loadPiSessionMessages(options.resumeSessionId, dirname(file))
-      options.computerUse ??= usage.computerUse
-      options.browserUse ??= usage.browserUse
-    }
-  }
   const guiMcp = setupGuiMcp(options)
   let proc: ChildProcess
   try {
@@ -171,13 +162,7 @@ export async function createPiSession(options: AiCreateOptions): Promise<{ succe
 
   // 像 claude 后端一样先放行输入框：pi 启动要 ~1s（Node CLI 冷启），期间 stdin 会缓冲，
   // 首条 prompt 在初始化完成后照常处理，不阻塞用户。session_id/model 稍后补推一次 READY。
-  send(IPC_CHANNELS.AI_READY, {
-    sessionId: options.sessionId,
-    cwd: options.cwd,
-    slashCommands: [],
-    computerUse: options.computerUse === true,
-    browserUse: options.browserUse === true,
-  })
+  send(IPC_CHANNELS.AI_READY, { sessionId: options.sessionId, cwd: options.cwd, slashCommands: [] })
 
   try {
     const state = await session.rpc.request({ type: 'get_state' }, 45000)
@@ -200,8 +185,6 @@ export async function createPiSession(options: AiCreateOptions): Promise<{ succe
     model: session.model,
     thinkingLevel: session.thinkingLevel,
     slashCommands: [],
-    computerUse: options.computerUse === true,
-    browserUse: options.browserUse === true,
   })
   if (session.model) send(IPC_CHANNELS.AI_MODEL_CHANGED, { sessionId: options.sessionId, model: session.model })
   return { success: true }
