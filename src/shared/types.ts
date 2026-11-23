@@ -68,6 +68,7 @@ export const IPC_CHANNELS = {
   FILE_READ: 'file:read',
   FILE_WRITE: 'file:write',
   FILE_READ_ENCODING: 'file:readEncoding',
+  FILE_READ_BINARY: 'file:readBinary',
   FILE_WRITE_ENCODING: 'file:writeEncoding',
   FILE_LIST: 'file:list',
   FILE_TREE: 'file:tree',

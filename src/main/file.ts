@@ -28,6 +28,7 @@ const BINARY_EXTENSIONS = new Set([
 ])
 
 const MAX_EDIT_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_BINARY_PREVIEW_SIZE = 20 * 1024 * 1024 // 20MB
 
 interface ClipboardSnapshot {
   files: string[]
@@ -317,6 +318,24 @@ export function registerFileHandlers(): void {
   })
 
   
+  // Read binary file content (spreadsheet preview)
+  ipcMain.handle(IPC_CHANNELS.FILE_READ_BINARY, async (_event, filePath: string) => {
+    try {
+      const backend = backendOf(filePath)
+      const size = backend.relay
+        ? (await backend.relay.request('fs.stat', { path: filePath })).size
+        : (await stat(filePath)).size
+      if (size > MAX_BINARY_PREVIEW_SIZE) {
+        const mb = (size / (1024 * 1024)).toFixed(1)
+        return { error: `File too large (${mb} MB), cannot preview` }
+      }
+      const buffer = await backendRead(backend, filePath)
+      return { data: new Uint8Array(buffer) }
+    } catch (err: any) {
+      return { error: err.message, code: err.code }
+    }
+  })
+
   // Write file content
   ipcMain.handle(IPC_CHANNELS.FILE_WRITE, async (_event, filePath: string, content: string | Uint8Array) => {
     try {

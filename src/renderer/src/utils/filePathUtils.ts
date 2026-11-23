@@ -9,7 +9,8 @@ const EDITABLE_EXTENSIONS = new Set([
   'php', 'swift', 'kt', 'vue', 'svelte', 'scss', 'less', 'dockerfile',
   'gitignore', 'cfg', 'conf', 'makefile', 'r', 'm', 'scala', 'clj', 'lua',
   'pl', 'pm', 'ex', 'exs', 'erl', 'hrl', 'vim', 'editorconfig', 'eslintrc',
-  'prettierrc', 'lock', 'gradle', 'properties', 'ps1', 'vbs', 'wren'
+  'prettierrc', 'lock', 'gradle', 'properties', 'ps1', 'vbs', 'wren',
+  'csv', 'tsv', 'xlsx', 'pdf'
 ])
 
 // Windows 绝对路径: E:\path\file.txt 或 E:/path/file.txt (无空格，空格走引号路径)

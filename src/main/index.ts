@@ -128,6 +128,7 @@ function createWindow(): void {
       contextIsolation: true,
       webSecurity: !is.dev,
       webviewTag: true,
+      plugins: true,
     },
     backgroundColor: '#1a1a2e',
     icon: app.isPackaged ? join(process.resourcesPath, 'icon.ico') : join(__dirname, '../../build/icon.ico')

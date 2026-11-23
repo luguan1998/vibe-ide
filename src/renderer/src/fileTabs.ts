@@ -1,6 +1,6 @@
 import { getFileInfo } from './components/FileIcons'
 
-export type FileTabKind = 'diff' | 'markdown' | 'image'
+export type FileTabKind = 'diff' | 'markdown' | 'image' | 'sheet' | 'pdf'
 
 export interface FileTabCommon {
   id: string
@@ -32,13 +32,25 @@ export interface ImageFileTab extends FileTabCommon {
   kind: 'image'
 }
 
-export type FileTab = DiffFileTab | MarkdownFileTab | ImageFileTab
+export interface SheetFileTab extends FileTabCommon {
+  kind: 'sheet'
+  rowCount?: number
+  colCount?: number
+}
+
+export interface PdfFileTab extends FileTabCommon {
+  kind: 'pdf'
+}
+
+export type FileTab = DiffFileTab | MarkdownFileTab | ImageFileTab | SheetFileTab | PdfFileTab
 
 export const MAX_FILE_TABS = 7
 
 const normTabPath = (p: string) => p.replace(/\\/g, '/')
 
 export const baseName = (fullPath: string) => fullPath.split(/[\\/]/).pop() || fullPath
+
+export const isTextSheet = (fullPath: string) => /\.(csv|tsv)$/i.test(baseName(fullPath))
 
 export function tabKey(t: FileTab): string {
   if (t.kind !== 'diff') return `${t.kind}|${normTabPath(t.fullPath)}`
@@ -53,6 +65,8 @@ export const makeTabId = (kind: FileTabKind) =>
 export function autoViewKind(fullPath: string): FileTabKind {
   const name = baseName(fullPath)
   if (/\.(md|mdx|markdown)$/i.test(name)) return 'markdown'
+  if (/\.(csv|tsv|xlsx)$/i.test(name)) return 'sheet'
+  if (/\.pdf$/i.test(name)) return 'pdf'
   if (getFileInfo(name).kind === 'image') return 'image'
   return 'diff'
 }

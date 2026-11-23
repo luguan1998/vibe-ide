@@ -103,6 +103,7 @@ const api = {
     read: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ, filePath),
     write: (filePath: string, content: string | Uint8Array) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE, filePath, content),
     readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ_ENCODING, filePath, encoding, forceOpen),
+    readBinary: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ_BINARY, filePath),
     writeWithEncoding: (filePath: string, content: string, encoding?: string, bom?: boolean) => ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE_ENCODING, filePath, content, encoding, bom),
     list: (dirPath: string) => ipcRenderer.invoke(IPC_CHANNELS.FILE_LIST, dirPath),
     getDrives: () => ipcRenderer.invoke(IPC_CHANNELS.FILE_GET_DRIVES),

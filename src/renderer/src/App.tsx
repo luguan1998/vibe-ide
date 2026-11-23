@@ -9,10 +9,12 @@ import RightPanel from './components/RightPanel'
 import DiffViewer, { type CallGraphRequest } from './components/DiffViewer'
 import { FileTabsView } from './components/FileTabsView'
 import { useFileTabs } from './utils/useFileTabs'
-import { FileTab as FileTabState, DiffFileTab, baseName, makeTabId, autoViewKind } from './fileTabs'
+import { FileTab as FileTabState, DiffFileTab, baseName, makeTabId, autoViewKind, isTextSheet } from './fileTabs'
 import type { TabSnapshot, TabRuntime } from './fileTabs'
 import MarkdownPreview, { MD_SEARCH_OPEN } from './components/MarkdownPreview'
 import ImagePreview from './components/ImagePreview'
+import SheetPreview from './components/SheetPreview'
+import PdfPreview from './components/PdfPreview'
 import BrowserView, { BrowserViewHandle, setBrowserStartUrl } from './components/BrowserView'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
@@ -112,6 +114,7 @@ declare global {
         read: (filePath: string) => Promise<any>
         write: (filePath: string, content: string | Uint8Array) => Promise<any>
         readWithEncoding: (filePath: string, encoding?: string, forceOpen?: boolean) => Promise<{ content: string; encoding: string; bom: boolean; confidence: number; error?: string }>
+        readBinary: (filePath: string) => Promise<{ data?: Uint8Array; error?: string }>
         writeWithEncoding: (filePath: string, content: string, encoding?: string, bom?: boolean) => Promise<{ success: boolean; error?: string }>
         list: (dirPath: string) => Promise<any>
         getDrives: () => Promise<string[]>
@@ -321,7 +324,7 @@ const isRightPanelWide = (collapsed: boolean, width: number) => !collapsed && wi
 const cwdBucketKey = (cwd: string | null | undefined) => (cwd ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 const EMPTY_RECENT: RecentFileEntry[] = []
 
-type OpenFileMode = 'auto' | 'edit' | 'diff'
+type OpenFileMode = 'auto' | 'edit' | 'diff' | 'text'
 
 interface OpenFileOpts {
   mode?: OpenFileMode
@@ -1609,7 +1612,10 @@ export default function App() {
 
   const openFileView = useCallback((fullPath: string, opts: OpenFileOpts = {}) => {
     const mode: OpenFileMode = opts.mode ?? 'auto'
-    const kind = (mode === 'diff' || mode === 'edit') ? 'diff' as const : autoViewKind(fullPath)
+    const autoKind = autoViewKind(fullPath)
+    const kind = mode === 'diff' || mode === 'text' || (mode === 'edit' && autoKind !== 'sheet' && autoKind !== 'pdf')
+      ? 'diff' as const
+      : autoKind
     // 记录导航历史：先订正"来时位置"（用户可能在文件内滚动过），再压目标位置。
     // 必须早于 openTab —— 那时 activeTab/cursorRef 还指向跳转前的文件。
     // 预览（md/图片）与不可读文件不占历史位，只把 index 推到哨兵位
@@ -1675,7 +1681,10 @@ export default function App() {
           patch.revision = ((patch.revision as number | undefined) ?? opened.revision) + 1
         }
         // 视图跟进入口意图：git 面板=diff，文件浏览器/搜索=edit；已是目标视图不写，edit→edit 重复点开保持惰性
-        if (mode !== 'auto' && opened.viewMode !== mode) patch.viewMode = mode
+        if (mode === 'diff' || mode === 'edit' || mode === 'text') {
+          const targetView = mode === 'diff' ? 'diff' : 'edit'
+          if (opened.viewMode !== targetView) patch.viewMode = targetView
+        }
       }
       if (Object.keys(patch).length) updateTab(opened.id, patch as Partial<FileTabState>)
     }
@@ -1857,6 +1866,23 @@ export default function App() {
   }, [openFileView, closeTabNow])
 
   const openMarkdownPreview = useCallback((tab: FileTabState) => {
+    closeTabNow(tab.id)
+    openFileView(tab.fullPath, { mode: 'auto' })
+  }, [openFileView, closeTabNow])
+
+  const openSheetInEditor = useCallback(async (fullPath: string) => {
+    const prev = tabsRef.current.find(t => t.kind === 'sheet' && t.fullPath === fullPath)
+    if (prev) {
+      const rt = tabRuntimeRef.current.get(prev.id)
+      if (rt?.dirty) { try { await rt.save() } catch {} }
+      closeTabNow(prev.id)
+    }
+    openFileView(fullPath, { mode: 'text' })
+  }, [openFileView, closeTabNow])
+
+  const openSheetPreview = useCallback(async (tab: FileTabState) => {
+    const rt = tabRuntimeRef.current.get(tab.id)
+    if (rt?.dirty) { try { await rt.save() } catch {} }
     closeTabNow(tab.id)
     openFileView(tab.fullPath, { mode: 'auto' })
   }, [openFileView, closeTabNow])
@@ -2086,7 +2112,7 @@ export default function App() {
         }
       }
 
-      // view.togglePreview — Ctrl+L: toggle diff/edit ↔ markdown preview
+      // view.togglePreview — Ctrl+L: toggle diff/edit ↔ preview
       if (eventMatchesBinding(e, bindings['view.togglePreview'])) {
         const at = activeTabRef.current
         if (at?.kind === 'markdown') {
@@ -2094,11 +2120,23 @@ export default function App() {
           e.stopImmediatePropagation()
           openMarkdownInEditor(at.fullPath)
           return
+        } else if (at?.kind === 'sheet' && isTextSheet(at.fullPath)) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          openSheetInEditor(at.fullPath)
+          return
         } else if (at?.kind === 'diff') {
-          if (autoViewKind(at.fullPath) === 'markdown') {
+          const autoKind = autoViewKind(at.fullPath)
+          if (autoKind === 'markdown') {
             e.preventDefault()
             e.stopImmediatePropagation()
             openMarkdownPreview(at)
+            return
+          }
+          if (autoKind === 'sheet' && isTextSheet(at.fullPath)) {
+            e.preventDefault()
+            e.stopImmediatePropagation()
+            openSheetPreview(at)
             return
           }
         }
@@ -3510,6 +3548,14 @@ export default function App() {
 
   const renderTab = useCallback((tab: FileTabState, isActive: boolean, headerLeading: ReactNode) => {
     if (tab.kind === 'diff') {
+      const autoKind = autoViewKind(tab.fullPath)
+      const openPreview = !tab.defaultEdit
+        ? undefined
+        : autoKind === 'markdown'
+          ? () => openMarkdownPreview(tab)
+          : autoKind === 'sheet' && isTextSheet(tab.fullPath)
+            ? () => openSheetPreview(tab)
+            : undefined
       return (
         <DiffViewer
           headerLeading={headerLeading}
@@ -3528,7 +3574,7 @@ export default function App() {
           jumpNonce={tab.jumpNonce}
           revision={tab.revision}
           onDismiss={returnToBaseView}
-          onOpenPreview={tab.defaultEdit && autoViewKind(tab.fullPath) === 'markdown' ? () => openMarkdownPreview(tab) : undefined}
+          onOpenPreview={openPreview}
           onSaved={handleRefreshGit}
           defaultEdit={tab.defaultEdit}
           fontSize={editorFontSize}
@@ -3573,6 +3619,32 @@ export default function App() {
         />
       )
     }
+    if (tab.kind === 'sheet') {
+      return (
+        <SheetPreview
+          headerLeading={headerLeading}
+          fullPath={tab.fullPath}
+          fileName={tab.fileName}
+          onDismiss={returnToBaseView}
+          onToggleEdit={isTextSheet(tab.fullPath) ? () => openSheetInEditor(tab.fullPath) : undefined}
+          onStats={(rows, cols) => updateTab(tab.id, { rowCount: rows, colCount: cols })}
+          tabId={tab.id}
+          getSnapshot={() => getTabSnapshot(tab.id)}
+          onPushSnapshot={(s) => pushTabSnapshot(tab.id, s)}
+          onRuntimeChange={(rt) => handleTabRuntime(tab.id, rt)}
+        />
+      )
+    }
+    if (tab.kind === 'pdf') {
+      return (
+        <PdfPreview
+          headerLeading={headerLeading}
+          fullPath={tab.fullPath}
+          fileName={tab.fileName}
+          onDismiss={returnToBaseView}
+        />
+      )
+    }
     return (
       <ImagePreview
         headerLeading={headerLeading}
@@ -3582,7 +3654,7 @@ export default function App() {
         brushActive={brushActive}
       />
     )
-  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, diffHunkNavTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, mdScrollHeading, handleUnreadableChange])
+  }, [getTabSnapshot, pushTabSnapshot, handleTabRuntime, updateTab, requestCloseTabById, handleRefreshGit, editorFontSize, wordWrap, inlineDiff, diffSplitRatio, diffScrollTrigger, diffHunkNavTrigger, activeSessionCwd, lspLangs, lspMultiDef, handleOpenFileFromSearch, handleAnnotationTrigger, brushActive, handleOutlineNavigate, openMarkdownInEditor, openSheetInEditor, openSheetPreview, mdScrollHeading, handleUnreadableChange])
 
   const fileTabsNode = (
     <FileTabsView

@@ -235,6 +235,11 @@ export function FileTabsView({
             {stats.deletions > 0 && <span className="text-ide-danger font-mono">-{stats.deletions}</span>}
           </div>
         )}
+        {at?.kind === 'sheet' && at.rowCount !== undefined && (
+          <span className="text-xs shrink-0 tabular-nums text-ide-text-muted">
+            {at.rowCount} × {at.colCount ?? 0}
+          </span>
+        )}
         <RecentInline files={recentFiles} onOpen={onOpenRecent} popoverGuardRef={popoverGuardRef} t={t} />
       </div>
     )
