@@ -1211,10 +1211,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
                     <span
                       key={att.id}
                       className="ai-tab__input-chip ai-tab__input-chip--ref group inline-flex items-center gap-1.5 h-7 pl-2 pr-1 rounded-full
-                                 border border-ide-border bg-ide-hover/40 max-w-[220px] animate-fade-in"
+                                 border border-ide-accent/40 bg-ide-accent/10 max-w-[220px] animate-fade-in"
                       title={att.text}
                     >
-                      <MessageSquarePlus size={11} strokeWidth={2} className="shrink-0 text-ide-text-muted" />
+                      <Plug size={11} strokeWidth={2} className="shrink-0 text-ide-accent/80" />
                       <span className="truncate text-[11px] text-ide-text">{att.label}</span>
                       <button
                         type="button"

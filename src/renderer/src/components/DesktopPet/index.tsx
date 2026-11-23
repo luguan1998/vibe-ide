@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems } from '../keypadItems'
-import { Edit, Send, MessageSquareQuote, X, BookOpenText, Pin, Sparkles, Loader2, RefreshCw } from 'lucide-react'
+import { Edit, Send, MessageSquareQuote, Plug, X, BookOpenText, Pin, Sparkles, Loader2, RefreshCw } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
@@ -751,8 +751,9 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 <span
                   key={ref}
                   title={ref}
-                  className="inline-flex items-center gap-1 h-5 pl-1.5 pr-0.5 rounded-full border border-ide-border bg-ide-hover/50 text-[10px] text-ide-text max-w-[170px]"
+                  className="inline-flex items-center gap-1 h-[22px] pl-2 pr-0.5 rounded-full border border-ide-accent/40 bg-ide-accent/10 text-[11px] text-ide-text max-w-full"
                 >
+                  <Plug size={11} strokeWidth={2} className="shrink-0 text-ide-accent/80" />
                   <span className="truncate">{ref.replace(/^@/, '')}</span>
                   <button
                     className="shrink-0 w-4 h-4 grid place-items-center rounded-full text-ide-text-muted hover:text-ide-text hover:bg-ide-hover"
