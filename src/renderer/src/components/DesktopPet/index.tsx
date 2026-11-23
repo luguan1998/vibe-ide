@@ -1,21 +1,38 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { PetManifest, PetListResult } from '@shared/types'
 import { PetSprite } from './PetSprite'
 import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
-import { loadKeypadItems, loadBtwPrefix } from '../keypadItems'
-import { Edit, Send, MessageSquareQuote, X, BookOpenText, Pin } from 'lucide-react'
+import { loadKeypadItems } from '../keypadItems'
+import { Edit, Send, MessageSquareQuote, X, BookOpenText, Pin, Sparkles, Loader2 } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi } from './petSettings'
-import { readAiCliConfig } from '../../aiStore'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetSuggestMode } from './petSettings'
+import { readAiCliConfig, aiStore } from '../../aiStore'
 import { AiReplyBubble } from './AiReplyBubble'
 import { addInterjectRecord, loadInterjectRecords, removeInterjectRecord, setInterjectReply, type InterjectRecord } from './interjectHistory'
 
 const CONTEXT_SIDE_SPACE = 228
 const CONTEXT_SIDE_MARGIN = 90
+
+const SUGGEST_PROMPT = '只根据以上对话内容，预测用户接下来最可能输入的 3 条简短指令。要求：使用对话的主要语言；每条不超过 30 个汉字（或 60 个字符），动词开头，可直接作为下一条消息发送；只输出 3 行纯文本，每行一条，不要编号、不要引号、不要任何解释。'
+
+function parseSuggestions(raw: string): string[] {
+  const text = raw.replace(/\r/g, '').trim()
+  if (!text) return []
+  return text.split('\n')
+    .flatMap(line => line.split(/(?=\s*\d{1,2}\s*[.、)）](?!\d))/))
+    .map(s => s.trim()
+      .replace(/^\d+\s*[.、)）]\s*/, '')
+      .replace(/^[-*•·]\s+/, '')
+      .replace(/^["'`“”‘’「」]+|["'`“”‘’「」]+$/g, '')
+      .replace(/\*\*|__|`/g, '')
+      .trim())
+    .filter(s => s.length > 0 && s.length <= 160 && !/^(建议|suggestions?)[:：]?$/i.test(s))
+    .slice(0, 3)
+}
 
 export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, sessions }: {
   logicalState: PetLogicalState
@@ -42,6 +59,30 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [draftCmd, setDraftCmd] = useState('')
   const [draftRefs, setDraftRefs] = useState<string[]>([])
   const activeKind = sessions.find(s => s.id === activeSessionId)?.kind
+  const aiKey = useSyncExternalStore(aiStore.subscribe, () => {
+    const s = aiStore.getSnapshot(activeSessionId)
+    return `${s.ready ? 1 : 0}|${s.backend}|${s.busy ? 1 : 0}|${s.messages.length > 0 ? 1 : 0}`
+  })
+  const [aiReady, aiBackend, aiBusyFlag, aiHasMessages] = aiKey.split('|')
+  const aiBusy = aiBusyFlag === '1'
+  const canSuggest = activeKind === 'gui' && !!activeSessionId && aiReady === '1' && aiHasMessages === '1' && aiBackend !== 'pi' && !aiBusy
+  const suggestionHint = activeKind !== 'gui'
+    ? '仅 AI 会话可用'
+    : aiBackend === 'pi'
+      ? 'pi 后端暂不支持'
+      : aiReady !== '1'
+        ? 'AI 未就绪'
+        : aiHasMessages !== '1'
+          ? '先发一条消息'
+          : aiBusy
+            ? 'AI 回复中'
+            : ''
+  const [suggestMode, setSuggestMode] = useState(() => getPetSuggestMode())
+  const [bubbleTab, setBubbleTab] = useState<'quick' | 'suggest'>('quick')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
+  const [suggestSessionId, setSuggestSessionId] = useState<string | null>(null)
   const [keypadItems, setKeypadItems] = useState<ReturnType<typeof loadKeypadItems>>([])
   const [, setConfigTick] = useState(0)
   const [frameRate, setFrameRate] = useState(() => getPetFrameRate())
@@ -60,6 +101,12 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const transientTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const lastShownReplyIdRef = useRef<string | null>(null)
   const pendingBtwRecordRef = useRef<{ sessionId: string; id: string } | null>(null)
+  const activeSessionRef = useRef(activeSessionId)
+  activeSessionRef.current = activeSessionId
+  const contextOpenRef = useRef(contextOpen)
+  contextOpenRef.current = contextOpen
+  const prevAiBusyRef = useRef<{ sid: string | null; busy: boolean }>({ sid: null, busy: false })
+  const suggestReqRef = useRef(0)
 
   // 加载 active manifest + 订阅 PET_CHANGED（设置里切换/删除后热重载）
   useEffect(() => {
@@ -108,6 +155,9 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setFrameRate(getPetFrameRate())
     setConfigTick(v => v + 1)
     setListenAi(getPetListenAi())
+    const mode = getPetSuggestMode()
+    setSuggestMode(mode)
+    if (mode === 'off') setBubbleTab('quick')
   }), [])
 
   const sendLine = useCallback((text: string) => {
@@ -117,6 +167,63 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     const v = (window as any).__vibeGetInput?.()
     return typeof v === 'string' ? v.trim() : ''
   }, [])
+
+  const predictSuggestions = useCallback(async (autoOpen: boolean) => {
+    const sid = activeSessionId
+    if (!sid || activeKind !== 'gui') return
+    const snap = aiStore.getSessionState(sid)
+    if (!snap.ready || snap.busy || snap.backend === 'pi' || snap.messages.length === 0) return
+    const req = ++suggestReqRef.current
+    setSuggestLoading(true)
+    setSuggestError(null)
+    setBubbleTab('suggest')
+    try {
+      const r = await window.api.ai.sideQuestion(sid, SUGGEST_PROMPT)
+      if (req !== suggestReqRef.current || activeSessionRef.current !== sid) return
+      if (!r?.success) {
+        setSuggestions([])
+        setSuggestError(r?.error || 'AI 建议生成失败')
+        return
+      }
+      const list = parseSuggestions(r.response || '')
+      if (!list.length) {
+        setSuggestions([])
+        setSuggestError('AI 未返回有效建议')
+        return
+      }
+      setSuggestions(list)
+      setSuggestSessionId(sid)
+      if (autoOpen && !contextOpenRef.current) {
+        const rect = wrapperRef.current?.getBoundingClientRect()
+        setKeypadItems(loadKeypadItems())
+        setAiBubbleOpen(false)
+        setPopupAbove(!!rect && rect.top > 240)
+        setPopupOpen(true)
+      }
+    } catch (e: any) {
+      if (req === suggestReqRef.current) setSuggestError(e?.message || 'AI 建议生成失败')
+    } finally {
+      if (req === suggestReqRef.current) setSuggestLoading(false)
+    }
+  }, [activeSessionId, activeKind])
+
+  // 自动模式：当前会话 AI busy→idle 后预测下一条输入
+  useEffect(() => {
+    const prev = prevAiBusyRef.current
+    prevAiBusyRef.current = { sid: activeSessionId, busy: aiBusy }
+    if (suggestMode !== 'auto' || !activeSessionId || !getPetVisible()) return
+    if (prev.sid !== activeSessionId || !prev.busy || aiBusy) return
+    void predictSuggestions(true)
+  }, [aiBusy, activeSessionId, suggestMode, predictSuggestions])
+
+  // 切换会话时清空上一会话的建议
+  useEffect(() => {
+    suggestReqRef.current++
+    setSuggestions([])
+    setSuggestError(null)
+    setSuggestSessionId(null)
+    setSuggestLoading(false)
+  }, [activeSessionId])
 
   const triggerTransient = useCallback((state: PetLogicalState) => {
     if (!TRANSIENT_LOGICAL_STATES.includes(state)) return
@@ -212,6 +319,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         setKeypadItems(loadKeypadItems())
         setPopupAbove(rect.top > 240)
         setAiBubbleOpen(false)
+        if (getPetSuggestMode() === 'off') setBubbleTab('quick')
         const next = !popupOpen
         setPopupOpen(next)
         setContextOpen(next && activeKind === 'gui')
@@ -239,13 +347,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     } else {
       setContextDir(rect.top > 240 ? 'above' : 'below')
     }
-    setDraftCmd(prev => {
-      if (prev.trim()) return prev
-      const pfx = loadBtwPrefix()
-      const head = pfx && !pfx.endsWith(' ') ? pfx + ' ' : pfx
-      // 前缀是模式标记（如 /btw）须留在最前，中栏草稿紧跟其后
-      return head + readCenterDraft()
-    })
+    setDraftCmd(prev => prev.trim() ? prev : readCenterDraft())
     setContextOpen(true)
   }, [aiBubbleOpen, latestReply, contextOpen, contextBtw, readCenterDraft])
 
@@ -500,46 +602,67 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       )}
       {popupOpen && (
         <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
-          {sections.map((sec, si) => (
-            <div className="desktop-pet__bubble-section" key={sec.id}>
-              {sec.items.map(it => (
+          {suggestMode !== 'off' && bubbleTab === 'suggest' ? (
+            <div key="suggest" className="desktop-pet__bubble-section desktop-pet__bubble-section--suggest">
+              <button
+                className="desktop-pet__bubble"
+                disabled={suggestLoading || !canSuggest}
+                title={!canSuggest ? suggestionHint : '让 AI 预测你接下来可能输入的内容'}
+                onClick={() => { void predictSuggestions(false) }}
+              >
+                {suggestLoading ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                <span className="desktop-pet__bubble-text">
+                  {suggestLoading ? '正在预测…' : suggestions.length ? '重新预测' : '预测下一步输入'}
+                </span>
+              </button>
+              {suggestError && !suggestLoading && (
                 <button
-                  key={it.id}
-                  className={`desktop-pet__bubble${it.danger ? ' desktop-pet__bubble--danger' : ''}`}
-                  disabled={it.disabled}
-                  title={it.label}
-                  onClick={() => onItemClick(it)}
+                  className="desktop-pet__bubble"
+                  disabled={!canSuggest}
+                  title={canSuggest ? suggestError : suggestionHint || suggestError}
+                  onClick={() => { void predictSuggestions(false) }}
                 >
-                  {it.badge}
-                  <span className="desktop-pet__bubble-text">{it.label}</span>
+                  <span className="desktop-pet__bubble-text text-ide-text-muted">生成失败，点击重试</span>
+                </button>
+              )}
+              {suggestions.map((s, i) => (
+                <button
+                  key={`${i}-${s}`}
+                  className="desktop-pet__bubble"
+                  title={s}
+                  onClick={() => {
+                    ;(window as any).__vibeSendLineTo?.(suggestSessionId ?? activeSessionId, s)
+                    setSuggestions([])
+                    setSuggestSessionId(null)
+                    setSuggestError(null)
+                    setPopupOpen(false)
+                    setContextOpen(false)
+                  }}
+                >
+                  <span className="desktop-pet__bubble-text">{s}</span>
                 </button>
               ))}
-              {si === 0 && (
-                <div className={`desktop-pet__interject-row${contextOpen && contextBtw ? ' desktop-pet__interject-row--with-input' : ''}`}>
-                  {contextOpen && contextBtw && (
-                    <textarea
-                      ref={inlineInputRef}
-                      className="desktop-pet__interject-input"
-                      rows={1}
-                      value={draftCmd}
-                      onChange={(e) => setDraftCmd(e.target.value)}
-                      onKeyDown={onContextKeyDown}
-                      placeholder="旁路提问，Enter 发送"
-                    />
-                  )}
-                  <button
-                    className="desktop-pet__context-gear"
-                    onClick={() => { setConfigOpen(true); setPopupOpen(false); setContextOpen(false) }}
-                    title="配置速发键"
-                  >
-                    <Edit size={14} />
-                  </button>
-                </div>
-              )}
             </div>
-          ))}
+          ) : (
+            sections.map(sec => (
+              <div className="desktop-pet__bubble-section" key={sec.id}>
+                {sec.items.map(it => (
+                  <button
+                    key={it.id}
+                    className={`desktop-pet__bubble${it.danger ? ' desktop-pet__bubble--danger' : ''}`}
+                    disabled={it.disabled}
+                    title={it.label}
+                    onClick={() => onItemClick(it)}
+                  >
+                    {it.badge}
+                    <span className="desktop-pet__bubble-text">{it.label}</span>
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
           {interjectRecords.length > 0 && (
-            <div className="desktop-pet__bubble-section desktop-pet__bubble-section--history">
+            <div key="history" className="desktop-pet__bubble-section desktop-pet__bubble-section--history">
               {interjectRecords.map(r => (
                 <div key={r.id} className="desktop-pet__history-item">
                   <div
@@ -568,6 +691,35 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
               ))}
             </div>
           )}
+          <div key="footer" className={`desktop-pet__interject-row${contextOpen && contextBtw ? ' desktop-pet__interject-row--with-input' : ''}`}>
+            {contextOpen && contextBtw && (
+              <textarea
+                ref={inlineInputRef}
+                className="desktop-pet__interject-input"
+                rows={1}
+                value={draftCmd}
+                onChange={(e) => setDraftCmd(e.target.value)}
+                onKeyDown={onContextKeyDown}
+                placeholder="旁路提问，Enter 发送"
+              />
+            )}
+            {suggestMode !== 'off' && (
+              <button
+                className="desktop-pet__context-gear"
+                onClick={() => setBubbleTab(bubbleTab === 'quick' ? 'suggest' : 'quick')}
+                title={bubbleTab === 'quick' ? '切换到预测模式' : '切换到速发模式'}
+              >
+                {bubbleTab === 'quick' ? <Sparkles size={14} /> : <Send size={14} className="-scale-x-100" />}
+              </button>
+            )}
+            <button
+              className="desktop-pet__context-gear"
+              onClick={() => { setConfigOpen(true); setPopupOpen(false); setContextOpen(false) }}
+              title="配置速发键"
+            >
+              <Edit size={14} />
+            </button>
+          </div>
         </div>
       )}
       {visible && activeSessionId && aiBubbleOpen && latestReply && (

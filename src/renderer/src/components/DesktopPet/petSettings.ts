@@ -137,6 +137,21 @@ export function setPetListenAi(v: boolean) {
   emit()
 }
 
+// off：不显示建议页；manual：点气泡手动预测；auto：AI busy→idle 后自动预测并弹出
+export type PetSuggestMode = 'off' | 'manual' | 'auto'
+const SUGGEST_MODE_KEY = 'vibe-ide-pet-suggest-mode'
+
+export function getPetSuggestMode(): PetSuggestMode {
+  try {
+    const v = localStorage.getItem(SUGGEST_MODE_KEY)
+    return v === 'off' || v === 'auto' || v === 'manual' ? v : 'manual'
+  } catch { return 'manual' }
+}
+export function setPetSuggestMode(v: PetSuggestMode) {
+  try { localStorage.setItem(SUGGEST_MODE_KEY, v) } catch {}
+  emit()
+}
+
 export function onPetPrefsChanged(cb: () => void): () => void {
   const h = () => cb()
   window.addEventListener(EVENT, h)

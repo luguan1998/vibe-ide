@@ -40,17 +40,3 @@ export function loadKeypadItems(): KeypadItem[] {
 export function saveKeypadItems(items: KeypadItem[]) {
   try { localStorage.setItem(KEYPAD_STORAGE_KEY, JSON.stringify(items)) } catch {}
 }
-
-const BTW_PREFIX_KEY = 'vibe-ide-btw-prefix'
-
-export function loadBtwPrefix(): string {
-  try {
-    const raw = localStorage.getItem(BTW_PREFIX_KEY)
-    if (raw && raw.trim()) return raw
-  } catch {}
-  return ''
-}
-
-export function saveBtwPrefix(prefix: string): void {
-  try { localStorage.setItem(BTW_PREFIX_KEY, prefix.trim()) } catch {}
-}

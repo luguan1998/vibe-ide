@@ -1324,8 +1324,8 @@ export default function App() {
     const mode = sessionsRef.current.find(s => s.id === sessionId)?.kind
     if (mode === 'gui') {
       // /btw prefix → non-interrupting side question. This funnel is the single
-      // entry for keypad / context input / BTW_PREFIX prefill, so detection lives
-      // here once and the pet stays dumb. Answer returns via BTW_REPLY_EVENT.
+      // entry for keypad / context input, so detection lives here once and the
+      // pet stays dumb. Answer returns via BTW_REPLY_EVENT.
       const btw = /^\s*\/btw\b\s*([\s\S]*)$/i.exec(text)
       if (btw) {
         const question = btw[1].trim()
@@ -1528,6 +1528,7 @@ export default function App() {
 
   useEffect(() => {
     (window as any).__vibeSendLine = (text: string) => sendDraftLine(activeSessionIdRef.current, text)
+    ;(window as any).__vibeSendLineTo = (sid: string | null, text: string) => sendDraftLine(sid, text)
     ;(window as any).__vibeAppendInput = (text: string) => {
       const sid = activeSessionIdRef.current
       if (!sid) return
