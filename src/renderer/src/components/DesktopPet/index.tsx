@@ -5,7 +5,7 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems } from '../keypadItems'
-import { Edit, Send, MessageSquareQuote, X, BookOpenText, Pin, Sparkles, Loader2 } from 'lucide-react'
+import { Edit, Send, MessageSquareQuote, X, BookOpenText, Pin, Sparkles, Loader2, RefreshCw } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
@@ -603,45 +603,60 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
       {popupOpen && (
         <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
           {suggestMode !== 'off' && bubbleTab === 'suggest' ? (
-            <div key="suggest" className="desktop-pet__bubble-section desktop-pet__bubble-section--suggest">
-              <button
-                className="desktop-pet__bubble"
-                disabled={suggestLoading || !canSuggest}
-                title={!canSuggest ? suggestionHint : '让 AI 预测你接下来可能输入的内容'}
-                onClick={() => { void predictSuggestions(false) }}
-              >
-                {suggestLoading ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                <span className="desktop-pet__bubble-text">
-                  {suggestLoading ? '正在预测…' : suggestions.length ? '重新预测' : '预测下一步输入'}
-                </span>
-              </button>
-              {suggestError && !suggestLoading && (
+            <div key="suggest" className="flex flex-col gap-1.5 rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-2.5 py-2">
+              {suggestions.length > 0 ? (
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={12} className="shrink-0 text-ide-accent" />
+                  <span className="flex-1 min-w-0 text-[12px] font-medium text-ide-text truncate">AI 给出的预测</span>
+                  <button
+                    className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded border border-ide-border text-[10px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 hover:bg-ide-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    disabled={suggestLoading || !canSuggest}
+                    title={!canSuggest ? suggestionHint : '重新预测'}
+                    onClick={() => { void predictSuggestions(false) }}
+                  >
+                    {suggestLoading ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                    重新预测
+                  </button>
+                </div>
+              ) : (
                 <button
-                  className="desktop-pet__bubble"
-                  disabled={!canSuggest}
-                  title={canSuggest ? suggestError : suggestionHint || suggestError}
+                  className="flex items-center gap-1.5 w-full text-left px-1 py-0.5 -mx-1 rounded hover:bg-ide-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={suggestLoading || !canSuggest}
+                  title={!canSuggest ? suggestionHint : suggestError || '生成下一条输入建议'}
                   onClick={() => { void predictSuggestions(false) }}
                 >
-                  <span className="desktop-pet__bubble-text text-ide-text-muted">生成失败，点击重试</span>
+                  {suggestLoading
+                    ? <Loader2 size={12} className="shrink-0 text-ide-accent animate-spin" />
+                    : <Sparkles size={12} className="shrink-0 text-ide-accent" />}
+                  <span className="text-[12px] font-medium text-ide-text">
+                    {suggestLoading ? '正在生成建议…' : suggestError ? '生成失败，点击重试' : '生成输入建议'}
+                  </span>
                 </button>
               )}
-              {suggestions.map((s, i) => (
-                <button
-                  key={`${i}-${s}`}
-                  className="desktop-pet__bubble"
-                  title={s}
-                  onClick={() => {
-                    ;(window as any).__vibeSendLineTo?.(suggestSessionId ?? activeSessionId, s)
-                    setSuggestions([])
-                    setSuggestSessionId(null)
-                    setSuggestError(null)
-                    setPopupOpen(false)
-                    setContextOpen(false)
-                  }}
-                >
-                  <span className="desktop-pet__bubble-text">{s}</span>
-                </button>
-              ))}
+              {suggestions.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={`${i}-${s}`}
+                      className="group flex items-start gap-2 w-full text-left px-2 py-1.5 rounded border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors"
+                      title={s}
+                      onClick={() => {
+                        ;(window as any).__vibeSendLineTo?.(suggestSessionId ?? activeSessionId, s)
+                        setSuggestions([])
+                        setSuggestSessionId(null)
+                        setSuggestError(null)
+                        setPopupOpen(false)
+                        setContextOpen(false)
+                      }}
+                    >
+                      <span className="shrink-0 w-4 h-4 mt-px rounded-full border border-ide-border flex items-center justify-center text-[9px] leading-none text-ide-text-muted group-hover:border-ide-accent group-hover:text-ide-accent transition-colors">
+                        {String.fromCharCode(97 + i)}
+                      </span>
+                      <span className="flex-1 min-w-0 text-[12px] leading-snug text-ide-text break-words">{s}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             sections.map(sec => (

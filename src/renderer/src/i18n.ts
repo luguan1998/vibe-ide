@@ -312,7 +312,7 @@ const ZH_MAP: Record<string, string> = {
   'Pet animation speed.': '宠物动画播放速度。',
   'Pet Listen Claude': '监听 Claude 回复',
   'Show the latest Claude reply as a pet bubble.': '在宠物旁边显示最新一条 Claude 回复。',
-  'AI Suggestions': 'AI 输入建议',
+  'AI Suggestions': 'AI 预测输入建议',
   'Off': '关闭',
   'Manual': '手动',
   'Auto': '自动',

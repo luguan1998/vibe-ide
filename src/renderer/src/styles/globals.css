@@ -933,14 +933,6 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   white-space: nowrap;
 }
 .desktop-pet__bubble-section--history { grid-template-columns: 1fr; }
-.desktop-pet__bubble-section--suggest { grid-template-columns: 1fr; }
-.desktop-pet__bubble-section--suggest .desktop-pet__bubble { align-items: flex-start; }
-.desktop-pet__bubble-section--suggest .desktop-pet__bubble-text {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
 .desktop-pet__bubble--history { cursor: default; user-select: text; }
 .desktop-pet__bubble--history:active { transform: none; }
 .desktop-pet__bubble--history:hover {
