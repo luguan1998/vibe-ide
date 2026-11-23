@@ -371,17 +371,18 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     else setAiBubbleAlign('center')
   }, [aiBubbleOpen, latestReply])
 
-  // 速发键气泡（宽 220）靠边时贴边，避免出屏
+  // 气泡靠边时贴边：速发键 220 / 建议卡片 300
   useEffect(() => {
     if (!popupOpen) return
     const el = wrapperRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
-    if (centerX - 110 < 8) setBubblesAlign('left')
-    else if (centerX + 110 > window.innerWidth - 8) setBubblesAlign('right')
+    const half = bubbleTab === 'suggest' ? 150 : 110
+    if (centerX - half < 8) setBubblesAlign('left')
+    else if (centerX + half > window.innerWidth - 8) setBubblesAlign('right')
     else setBubblesAlign('default')
-  }, [popupOpen])
+  }, [popupOpen, bubbleTab])
 
   // 右键输入框上下弹时靠边贴边；左右弹时按半区判断已安全，无需再算（须重置 align，防残留变体覆盖定位）
   useEffect(() => {
@@ -601,20 +602,20 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         </div>
       )}
       {popupOpen && (
-        <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
-          {suggestMode !== 'off' && bubbleTab === 'suggest' ? (
-            <div key="suggest" className="flex flex-col gap-1.5 rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-2.5 py-2">
+        <div className={`desktop-pet__bubbles${bubbleTab === 'suggest' ? ' desktop-pet__bubbles--suggest' : ''}${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
+          {bubbleTab === 'suggest' ? (
+            <div key="suggest" className="flex flex-col gap-1.5 rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-1.5 py-2">
               {suggestions.length > 0 ? (
                 <div className="flex items-center gap-1.5">
-                  <Sparkles size={12} className="shrink-0 text-ide-accent" />
-                  <span className="flex-1 min-w-0 text-[12px] font-medium text-ide-text truncate">AI 给出的预测</span>
+                  <Sparkles size={13} className="shrink-0 text-ide-accent" />
+                  <span className="flex-1 min-w-0 text-[13px] font-medium text-ide-text truncate">AI 给出的预测</span>
                   <button
-                    className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded border border-ide-border text-[10px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 hover:bg-ide-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded border border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 hover:bg-ide-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     disabled={suggestLoading || !canSuggest}
                     title={!canSuggest ? suggestionHint : '重新预测'}
                     onClick={() => { void predictSuggestions(false) }}
                   >
-                    {suggestLoading ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                    {suggestLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
                     重新预测
                   </button>
                 </div>
@@ -626,9 +627,9 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                   onClick={() => { void predictSuggestions(false) }}
                 >
                   {suggestLoading
-                    ? <Loader2 size={12} className="shrink-0 text-ide-accent animate-spin" />
-                    : <Sparkles size={12} className="shrink-0 text-ide-accent" />}
-                  <span className="text-[12px] font-medium text-ide-text">
+                    ? <Loader2 size={13} className="shrink-0 text-ide-accent animate-spin" />
+                    : <Sparkles size={13} className="shrink-0 text-ide-accent" />}
+                  <span className="text-[13px] font-medium text-ide-text">
                     {suggestLoading ? '正在生成建议…' : suggestError ? '生成失败，点击重试' : '生成输入建议'}
                   </span>
                 </button>
@@ -638,7 +639,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                   {suggestions.map((s, i) => (
                     <button
                       key={`${i}-${s}`}
-                      className="group flex items-start gap-2 w-full text-left px-2 py-1.5 rounded border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors"
+                      className="group flex items-start gap-1.5 w-full text-left px-1.5 py-1.5 rounded border border-ide-border hover:border-ide-accent/50 hover:bg-ide-hover transition-colors"
                       title={s}
                       onClick={() => {
                         ;(window as any).__vibeSendLineTo?.(suggestSessionId ?? activeSessionId, s)
@@ -649,10 +650,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                         setContextOpen(false)
                       }}
                     >
-                      <span className="shrink-0 w-4 h-4 mt-px rounded-full border border-ide-border flex items-center justify-center text-[9px] leading-none text-ide-text-muted group-hover:border-ide-accent group-hover:text-ide-accent transition-colors">
-                        {String.fromCharCode(97 + i)}
+                      <span className="shrink-0 w-4 h-4 mt-px rounded-full border border-ide-border flex items-center justify-center text-[11px] font-medium leading-none text-ide-text-muted group-hover:border-ide-accent group-hover:text-ide-accent transition-colors">
+                        {String.fromCharCode(65 + i)}
                       </span>
-                      <span className="flex-1 min-w-0 text-[12px] leading-snug text-ide-text break-words">{s}</span>
+                      <span className="flex-1 min-w-0 text-[13px] leading-snug text-ide-text break-words">{s}</span>
                     </button>
                   ))}
                 </div>
