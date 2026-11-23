@@ -371,18 +371,17 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     else setAiBubbleAlign('center')
   }, [aiBubbleOpen, latestReply])
 
-  // 气泡靠边时贴边：速发键 220 / 建议卡片 300
+  // 速发键气泡（宽 220）靠边时贴边，避免出屏
   useEffect(() => {
     if (!popupOpen) return
     const el = wrapperRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
-    const half = bubbleTab === 'suggest' ? 150 : 110
-    if (centerX - half < 8) setBubblesAlign('left')
-    else if (centerX + half > window.innerWidth - 8) setBubblesAlign('right')
+    if (centerX - 110 < 8) setBubblesAlign('left')
+    else if (centerX + 110 > window.innerWidth - 8) setBubblesAlign('right')
     else setBubblesAlign('default')
-  }, [popupOpen, bubbleTab])
+  }, [popupOpen])
 
   // 右键输入框上下弹时靠边贴边；左右弹时按半区判断已安全，无需再算（须重置 align，防残留变体覆盖定位）
   useEffect(() => {
@@ -602,7 +601,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         </div>
       )}
       {popupOpen && (
-        <div className={`desktop-pet__bubbles${bubbleTab === 'suggest' ? ' desktop-pet__bubbles--suggest' : ''}${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
+        <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
           {bubbleTab === 'suggest' ? (
             <div key="suggest" className="flex flex-col gap-1.5 rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-1.5 py-2">
               {suggestions.length > 0 ? (

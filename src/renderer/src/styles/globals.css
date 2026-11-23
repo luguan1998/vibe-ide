@@ -850,10 +850,6 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 .desktop-pet__bubbles--below { top: calc(100% + 8px); }
 .desktop-pet__bubbles--align-left { left: 8px; }
 .desktop-pet__bubbles--align-right { left: auto; right: 8px; }
-.desktop-pet__bubbles--suggest { width: 300px; }
-.desktop-pet__bubbles--suggest:not(.desktop-pet__bubbles--align-left):not(.desktop-pet__bubbles--align-right) {
-  left: calc(50% - 150px);
-}
 .desktop-pet__bubble-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
