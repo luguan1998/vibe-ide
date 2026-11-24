@@ -182,6 +182,36 @@ Outputs `dist/Vibe IDE Setup x64.exe` (NSIS) + a 7z. Install it and open a sessi
 >   throws `Electron uninstall`.
 > - `node-pty` needs the VS C++ workload, or its build fails.
 > - The `pi` backend needs the `pi` CLI on `PATH` (or resolved from its install dir).
+> - `clipboard-files` is a native module with no prebuilt binaries. If
+>   `npm run dev` crashes at startup with `Could not locate the bindings file`
+>   after reinstalling dependencies, rebuild it (see next section).
+
+### Rebuilding clipboard-files (dev crashes after npm reinstall)
+
+`clipboard-files` (file clipboard) ships no prebuilt binary — after `npm ci`
+you must compile `node_modules/clipboard-files/build/Release/binding.node`
+locally, or the main process crashes on startup.
+
+Machine-specific gotcha: with VS 2026 (v18), node-gyp 11's bundled
+`find-visualstudio` picks the BuildTools edition whose VCTargets lack
+`Microsoft.Cpp.Default.props`, so a plain `node-gyp rebuild` fails with
+`MSB4019`. Fix = build with the **VS Community 2026 MSBuild**:
+
+```bash
+cd node_modules/clipboard-files
+npx -y node-gyp@13.1.0 configure          # generates build/binding.vcxproj
+VCTargetsPath="C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Microsoft/VC/v180/" \
+  "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" \
+  build/binding.sln -p:Configuration=Release -p:Platform=x64 -m
+node -e "require('.')"                    # verify it loads (prints readFiles/writeFiles/path)
+```
+
+Notes:
+- `node-gyp@13.1.0` (or newer) recognizes VS 2026; the repo's pinned 11.5.0 does not.
+- MSBuild must be the Community edition path (BuildTools' VCTargets are
+  incomplete); keep the trailing `\` on `VCTargetsPath`.
+- The output lands in `build/Release/binding.node` (139KB). Another `npm ci`
+  wipes it — rerun the steps above.
 
 ### Build & Package
 

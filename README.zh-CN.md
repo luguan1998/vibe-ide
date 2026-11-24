@@ -178,6 +178,31 @@ npm run build:win
 > - electron **二进制**必须走镜像（第 2 步），否则 dev 报 `Electron uninstall`。
 > - `node-pty` 需要 VS C++ 工作负载，否则编译失败。
 > - pi 后端需要 `pi` CLI 在 `PATH` 中（或能从其安装目录解析到）。
+> - `clipboard-files` 是原生模块。npm 重装依赖后若 `npm run dev` 启动即报
+>   `Could not locate the bindings file`，需要重新编译它（见下节）。
+
+### clipboard-files 原生模块重编译（npm 重装后 dev 启动崩）
+
+`clipboard-files`（文件剪贴板）没有预编译产物，`npm ci` 后必须本地编译出
+`node_modules/clipboard-files/build/Release/binding.node`，缺失时主进程启动即崩。
+
+本机环境坑：VS 2026（v18）+ node-gyp 11 自带的 `find-visualstudio` 认不出
+BuildTools 版缺少 `Microsoft.Cpp.Default.props`，直接 `node-gyp rebuild` 会报
+`MSB4019 找不到导入的项目`。解决 = 用 **VS Community 2026 的 MSBuild** 构建：
+
+```bash
+cd node_modules/clipboard-files
+npx -y node-gyp@13.1.0 configure          # 生成 build/binding.vcxproj
+VCTargetsPath="C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Microsoft/VC/v180/" \
+  "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" \
+  build/binding.sln -p:Configuration=Release -p:Platform=x64 -m
+node -e "require('.')"                    # 验证加载 OK（输出 readFiles/writeFiles/path）
+```
+
+要点：
+- `node-gyp@13.1.0`（或更高）才认识 VS 2026；仓库 devDependencies 里的 11.5.0 不行。
+- MSBuild 必须走 Community 版路径（BuildTools 的 VCTargets 缺文件）；`VCTargetsPath` 结尾带 `\`。
+- 编译产物在 `build/Release/binding.node`（139KB），再次 `npm ci` 会被清掉，需重新执行上述步骤。
 
 ### 构建 & 打包
 
