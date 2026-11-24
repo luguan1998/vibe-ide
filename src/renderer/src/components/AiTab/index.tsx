@@ -1187,10 +1187,10 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
           {/* Pill container */}
           <div
             className={`ai-tab__input-pill rounded-2xl border bg-ide-sidebar shadow-sm
-                        transition-colors ${
+                        transition-[border-color,box-shadow] duration-200 ${
                           dragOverInput
                             ? 'border-ide-accent'
-                            : 'border-ide-accent/60 focus-within:border-ide-accent'
+                            : 'border-ide-border focus-within:border-ide-text/20 focus-within:ring-[3px] focus-within:ring-ide-text/5'
                         }`}
             onDragOver={(e) => {
               if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return
