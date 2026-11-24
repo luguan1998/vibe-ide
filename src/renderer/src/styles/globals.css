@@ -118,6 +118,11 @@ html, body, #root {
   background: rgb(var(--scrollbar-thumb-hover)) !important;
 }
 
+/* Session 列表: 4px 细滚动条；外层 4px padding 抵消负 margin，滚动条落在外层 padding 里，不挤压会话行 */
+#root .session-panel__list-wrapper { padding-right: 4px; }
+#root .session-panel__list { margin-right: -4px; }
+#root .session-panel__list::-webkit-scrollbar { width: 4px !important; }
+
 /* AI tab 轮次导航（右侧线段 + hover 展开的卡片） */
 #root .ai-tab__turn-rail-card::-webkit-scrollbar {
   width: 6px;
