@@ -5,7 +5,7 @@ import { join, dirname } from 'path'
 import * as pty from 'node-pty'
 import type { ClientChannel } from 'ssh2'
 import { IPC_CHANNELS, CreateTerminalOptions, TerminalSession } from '../shared/types'
-import { createSshShell, getSshHostAddress } from './remote/ssh'
+import { createSshShell, getSshHostLabel } from './remote/ssh'
 import { registerRemoteRoot, resolveRemoteConnection } from './remote/roots'
 
 // node-pty 默认走系统 ConPTY，它会吞掉 1049/1000/1002/1003/1006，只透传 1004：于是 xterm 进不了
@@ -294,6 +294,13 @@ function shellQuote(value: string): string {
   return "'" + value.replace(/'/g, "'\\''") + "'"
 }
 
+function sshSessionName(connectionId: string, cwd: string): string | undefined {
+  const host = getSshHostLabel(connectionId)
+  const folder = cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop()
+  if (!host && !folder) return undefined
+  return [host, folder].filter(Boolean).join('·')
+}
+
 async function createSshTerminalSession(options: CreateTerminalOptions): Promise<TerminalSession> {
   const id = options.id || `term-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const cols = 80
@@ -303,7 +310,7 @@ async function createSshTerminalSession(options: CreateTerminalOptions): Promise
   if (cwd) registerRemoteRoot(cwd, options.sshConnectionId!)
   const session: TerminalSession = {
     id,
-    name: options.name || getSshHostAddress(options.sshConnectionId!) || `SSH ${sshTerminals.size + 1}`,
+    name: options.name || sshSessionName(options.sshConnectionId!, cwd) || `SSH ${sshTerminals.size + 1}`,
     cwd,
     shell: 'ssh',
     sshConnectionId: options.sshConnectionId,

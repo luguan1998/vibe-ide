@@ -1575,16 +1575,6 @@ const SessionPanel = React.memo(React.forwardRef<SessionPanelHandle, SessionPane
           )}
         </div>
         <div className={`flex items-center session-item__actions ${opts.showCwd ? 'absolute right-3 top-1/2 -translate-y-1/2' : ''}`}>
-          {(session.sshConnectionId || session.sshHostId) && session.cwd && (
-            <span
-              className={`session-item__ssh-path shrink min-w-0 inline-flex items-center gap-0.5 px-1 h-4 rounded text-[10px] max-w-[110px] mr-0.5 ${
-                session.id === activeSessionId ? 'bg-ide-accent/10 text-ide-accent' : 'bg-ide-border/40 text-ide-text-muted'
-              }`}
-              title={session.cwd}
-            >
-              <span className="truncate">{dirNameOf(session.cwd)}</span>
-            </span>
-          )}
           {pipeRunning?.[session.id] && (
             <div className="session-item__pipe flex items-center gap-0.5 mr-0.5 pl-1.5 pr-1 h-5 rounded bg-ide-accent/10 text-ide-accent shrink-0">
               <Loader2 size={11} className="session-item__pipe-spinner animate-spin" />

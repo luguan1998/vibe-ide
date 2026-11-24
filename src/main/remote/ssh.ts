@@ -278,8 +278,9 @@ export function getSshRelay(id: string): RelayClient | undefined {
   return connections.get(id)?.relay
 }
 
-export function getSshHostAddress(id: string): string | undefined {
-  return connections.get(id)?.host.host
+export function getSshHostLabel(id: string): string | undefined {
+  const host = connections.get(id)?.host
+  return host?.label || host?.host
 }
 
 export function createSshShell(id: string, cols: number, rows: number): Promise<ClientChannel> {
