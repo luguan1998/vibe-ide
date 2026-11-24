@@ -5,11 +5,11 @@ import { injectPetKeyframes } from './keyframes'
 import { resolveStateName, type PetLogicalState, TRANSIENT_LOGICAL_STATES } from './stateMap'
 export type { PetLogicalState }
 import { loadKeypadItems } from '../keypadItems'
-import { Edit, Send, MessageSquareQuote, Plug, X, BookOpenText, Pin, Sparkles, Loader2, RefreshCw } from 'lucide-react'
+import { Edit, Send, MessageSquareQuote, Plug, X, BookOpenText, Pin, Sparkles, Loader2, RefreshCw, Zap } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetSuggestMode } from './petSettings'
+import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetAutoSuggest, setPetAutoSuggest } from './petSettings'
 import { readAiCliConfig, aiStore } from '../../aiStore'
 import { AiReplyBubble } from './AiReplyBubble'
 import { addInterjectRecord, loadInterjectRecords, removeInterjectRecord, setInterjectReply, type InterjectRecord } from './interjectHistory'
@@ -77,7 +77,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
           : aiBusy
             ? 'AI 回复中'
             : ''
-  const [suggestMode, setSuggestMode] = useState(() => getPetSuggestMode())
+  const [autoSuggest, setAutoSuggestState] = useState(() => getPetAutoSuggest())
   const [bubbleTab, setBubbleTab] = useState<'quick' | 'suggest'>('quick')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
@@ -155,9 +155,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setFrameRate(getPetFrameRate())
     setConfigTick(v => v + 1)
     setListenAi(getPetListenAi())
-    const mode = getPetSuggestMode()
-    setSuggestMode(mode)
-    if (mode === 'off') setBubbleTab('quick')
+    setAutoSuggestState(getPetAutoSuggest())
   }), [])
 
   const sendLine = useCallback((text: string) => {
@@ -211,10 +209,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   useEffect(() => {
     const prev = prevAiBusyRef.current
     prevAiBusyRef.current = { sid: activeSessionId, busy: aiBusy }
-    if (suggestMode !== 'auto' || !activeSessionId || !getPetVisible()) return
+    if (!autoSuggest || !activeSessionId || !getPetVisible()) return
     if (prev.sid !== activeSessionId || !prev.busy || aiBusy) return
     void predictSuggestions(true)
-  }, [aiBusy, activeSessionId, suggestMode, predictSuggestions])
+  }, [aiBusy, activeSessionId, autoSuggest, predictSuggestions])
 
   // 切换会话时清空上一会话的建议
   useEffect(() => {
@@ -319,7 +317,6 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         setKeypadItems(loadKeypadItems())
         setPopupAbove(rect.top > 240)
         setAiBubbleOpen(false)
-        if (getPetSuggestMode() === 'off') setBubbleTab('quick')
         const next = !popupOpen
         setPopupOpen(next)
         setContextOpen(next && activeKind === 'gui')
@@ -587,6 +584,16 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     setContextOpen(false)
   }
 
+  const autoSuggestToggle = (
+    <button
+      className={`shrink-0 grid place-items-center w-5 h-5 rounded-md transition-colors ${autoSuggest ? 'text-ide-accent bg-ide-accent/15' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+      title={autoSuggest ? '自动预测已开启，点击关闭' : '开启自动预测'}
+      onClick={() => setPetAutoSuggest(!autoSuggest)}
+    >
+      <Zap size={12} fill={autoSuggest ? 'currentColor' : 'none'} />
+    </button>
+  )
+
   return (
     <div className="desktop-pet__wrapper" ref={wrapperRef} style={wrapperStyle}>
       {visible && (
@@ -608,30 +615,33 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 <div className="flex items-center gap-1.5">
                   <Sparkles size={13} className="shrink-0 text-ide-accent" />
                   <span className="flex-1 min-w-0 text-[13px] font-medium text-ide-text truncate">AI 给出的预测</span>
+                  {autoSuggestToggle}
                   <button
-                    className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded border border-ide-border text-[11px] text-ide-text-muted hover:text-ide-accent hover:border-ide-accent/50 hover:bg-ide-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="shrink-0 grid place-items-center w-5 h-5 rounded-md text-ide-text-muted hover:text-ide-accent hover:bg-ide-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     disabled={suggestLoading || !canSuggest}
                     title={!canSuggest ? suggestionHint : '重新预测'}
                     onClick={() => { void predictSuggestions(false) }}
                   >
-                    {suggestLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                    重新预测
+                    {suggestLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                   </button>
                 </div>
               ) : (
-                <button
-                  className="flex items-center gap-1.5 w-full text-left px-1 py-0.5 -mx-1 rounded hover:bg-ide-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  disabled={suggestLoading || !canSuggest}
-                  title={!canSuggest ? suggestionHint : suggestError || '生成下一条输入建议'}
-                  onClick={() => { void predictSuggestions(false) }}
-                >
-                  {suggestLoading
-                    ? <Loader2 size={13} className="shrink-0 text-ide-accent animate-spin" />
-                    : <Sparkles size={13} className="shrink-0 text-ide-accent" />}
-                  <span className="text-[13px] font-medium text-ide-text">
-                    {suggestLoading ? '正在生成建议…' : suggestError ? '生成失败，点击重试' : '生成输入建议'}
-                  </span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left px-1 py-0.5 rounded hover:bg-ide-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    disabled={suggestLoading || !canSuggest}
+                    title={!canSuggest ? suggestionHint : suggestError || '生成下一条输入建议'}
+                    onClick={() => { void predictSuggestions(false) }}
+                  >
+                    {suggestLoading
+                      ? <Loader2 size={13} className="shrink-0 text-ide-accent animate-spin" />
+                      : <Sparkles size={13} className="shrink-0 text-ide-accent" />}
+                    <span className="text-[13px] font-medium text-ide-text">
+                      {suggestLoading ? '正在生成建议…' : suggestError ? '生成失败，点击重试' : '生成输入建议'}
+                    </span>
+                  </button>
+                  {autoSuggestToggle}
+                </div>
               )}
               {suggestions.length > 0 && (
                 <div className="flex flex-col gap-1">
@@ -718,15 +728,13 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 placeholder="旁路提问，Enter 发送"
               />
             )}
-            {suggestMode !== 'off' && (
-              <button
-                className="desktop-pet__context-gear"
-                onClick={() => setBubbleTab(bubbleTab === 'quick' ? 'suggest' : 'quick')}
-                title={bubbleTab === 'quick' ? '切换到预测模式' : '切换到速发模式'}
-              >
-                {bubbleTab === 'quick' ? <Sparkles size={14} /> : <Send size={14} className="-scale-x-100" />}
-              </button>
-            )}
+            <button
+              className="desktop-pet__context-gear"
+              onClick={() => setBubbleTab(bubbleTab === 'quick' ? 'suggest' : 'quick')}
+              title={bubbleTab === 'quick' ? '切换到预测模式' : '切换到速发模式'}
+            >
+              {bubbleTab === 'quick' ? <Sparkles size={14} /> : <Send size={14} className="-scale-x-100" />}
+            </button>
             <button
               className="desktop-pet__context-gear"
               onClick={() => { setConfigOpen(true); setPopupOpen(false); setContextOpen(false) }}
