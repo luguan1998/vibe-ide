@@ -1186,7 +1186,7 @@ const AiTab = forwardRef<AiTabHandle, AiTabProps>(function AiTab({ activeSession
 
           {/* Pill container */}
           <div
-            className={`ai-tab__input-pill rounded-2xl border bg-ide-sidebar shadow-sm
+            className={`ai-tab__input-pill rounded-2xl border bg-ide-panel shadow-sm
                         transition-[border-color,box-shadow] duration-200 ${
                           dragOverInput
                             ? 'border-ide-accent'
