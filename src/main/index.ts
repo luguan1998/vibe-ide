@@ -596,8 +596,8 @@ app.whenReady().then(() => {
   }
 
   function notifyPetsChanged() {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(IPC_CHANNELS.PET_CHANGED)
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.PET_CHANGED)
     }
   }
 

@@ -24,3 +24,11 @@ export function applyMdFont(): void {
     if (s) root.style.setProperty('--md-font-size', s + 'px')
   } catch {}
 }
+
+// 主窗口 UI 字体（App.tsx 写到 --ide-font-family）；宠物气泡/按钮和 MD 字体 fallback 都用它
+export function applyUiFont(): void {
+  try {
+    const f = localStorage.getItem('vibe-ide-font-family')
+    if (f) document.documentElement.style.setProperty('--ide-font-family', f)
+  } catch {}
+}
