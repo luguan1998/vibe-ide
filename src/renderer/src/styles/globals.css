@@ -554,6 +554,13 @@ html.pet-window .desktop-pet__bubbles {
   left: 8px;
 }
 
+/* 焦点框跟卡片右缘对齐：右栏可见且非宽栏时卡片右侧留 4px 间隙（mx-1），
+   inset:0 会把这条缝也框进去，右边竖线落到卡片外。
+   排除 --last（无右栏）与 --no-border（宽栏，mr-0）两种右侧无缝的情况 */
+.center-panel.focus-frame:not(.center-panel--last, .center-no-border)::before {
+  right: 4px;
+}
+
 /* Focus indicator — inset shadow with subtle inner glow, follows border-radius */
 .focus-frame {
   position: relative;
