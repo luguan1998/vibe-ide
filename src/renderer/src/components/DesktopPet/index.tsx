@@ -567,12 +567,9 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     : resolveStateName(effectiveLogicalState)
   const stateFrames = manifest.states[stateName]?.frames ?? 1
   const frames = dragDir ? stateFrames : getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
-  const defaultStyle: React.CSSProperties = (visible || (!popupOpen && !contextOpen))
-    ? { left: 8, bottom: 8 }
-    : { left: 70, bottom: 8 }
   const wrapperStyle: React.CSSProperties = pos
     ? { left: Math.min(pos.left, window.innerWidth - 8), top: Math.min(pos.top, window.innerHeight - 8) }
-    : defaultStyle
+    : { left: 8, bottom: 8 }
 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）
   const keypadSection: PetBubbleSection = {
