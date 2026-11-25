@@ -1117,9 +1117,15 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 .desktop-pet__context-hint {
   pointer-events: none;
   user-select: none;
+  align-self: center;
   font-size: 11px;
-  color: rgb(var(--ide-text-muted) / 0.8);
+  color: rgb(var(--ide-text-muted));
   text-align: center;
+  background: rgb(var(--ide-sidebar));
+  border: 1px solid rgb(var(--ide-border));
+  border-radius: 8px;
+  padding: 2px 8px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
 }
 
 .aux-tab__scroll { scrollbar-width: none; }

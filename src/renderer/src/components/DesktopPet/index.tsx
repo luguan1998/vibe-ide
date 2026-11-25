@@ -783,7 +783,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
                 <span
                   key={ref}
                   title={ref}
-                  className="inline-flex items-center gap-1 h-[22px] pl-2 pr-0.5 rounded-full border border-ide-accent/40 bg-ide-accent/10 text-[11px] text-ide-text max-w-full"
+                  className="inline-flex items-center gap-1 h-[22px] pl-2 pr-0.5 rounded-full border border-ide-accent/40 bg-ide-sidebar shadow-sm text-[11px] text-ide-text max-w-full"
                 >
                   <Plug size={11} strokeWidth={2} className="shrink-0 text-ide-accent/80" />
                   <span className="truncate">{ref.replace(/^@/, '')}</span>
