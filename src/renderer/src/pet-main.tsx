@@ -6,6 +6,7 @@ import { I18nProvider } from './i18n'
 import ErrorBoundary from './components/ErrorBoundary'
 import { PetWindowRoot } from './components/DesktopPet/PetWindowRoot'
 import { setMonacoPreInit } from './utils/monacoSingleton'
+import { applyMdFont, applySnippetsCss } from './petWindowCss'
 import './styles/globals.css'
 
 // AI 回复里的代码块要用 monaco colorize：首次出现时动态加载，避免宠物窗口预载 6MB。
@@ -20,15 +21,13 @@ setMonacoPreInit(async () => {
 })
 
 async function bootstrap() {
-  try {
-    const { css } = await window.api.snippets.load()
-    if (css) {
-      const style = document.createElement('style')
-      style.id = 'custom-css'
-      style.textContent = css
-      document.head.appendChild(style)
-    }
-  } catch { /* 加载失败不阻断启动 */ }
+  applyMdFont()
+  await applySnippetsCss()
+
+  // 主窗口改 MD 字体只写 localStorage，宠物窗口靠 storage 事件跟着刷新
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'vibe-ide-md-font' || e.key === 'vibe-ide-md-font-size') applyMdFont()
+  })
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

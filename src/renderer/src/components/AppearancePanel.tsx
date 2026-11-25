@@ -375,6 +375,7 @@ const AppearancePanel = function AppearancePanel({
       document.head.appendChild(s)
     }
     syncTitleBarOverlay()
+    window.api.petWin.pushEvent({ type: 'refreshCss' })
   }
 
   const handleSnippetToggle = async (filename: string, enabled: boolean) => {

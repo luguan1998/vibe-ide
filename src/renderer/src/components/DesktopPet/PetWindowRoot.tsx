@@ -3,6 +3,7 @@ import type { PetWinState } from '@shared/types'
 import { DesktopPet, type PetWindowBridge } from './index'
 import { applyPetPrefs } from './petSettings'
 import { useTheme } from '../../themes'
+import { applySnippetsCss } from '../../petWindowCss'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 
 export function PetWindowRoot() {
@@ -27,10 +28,21 @@ export function PetWindowRoot() {
         window.dispatchEvent(new CustomEvent(BTW_REPLY_EVENT, { detail: evt.detail }))
       } else if (evt.type === 'annotation') {
         window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: evt.detail }))
+      } else if (evt.type === 'refreshCss') {
+        void applySnippetsCss()
       }
     })
     return () => window.api.petWin.removeEventListener(handler)
   }, [])
+
+  // 主题 id 是已有的持久变量：主窗口切换主题时同步刷新宠物窗口
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'vibe-ide-theme' && e.newValue) setTheme(e.newValue)
+    }
+    window.addEventListener('storage', handler)
+    return () => window.removeEventListener('storage', handler)
+  }, [setTheme])
 
   useEffect(() => {
     const handler = window.api.petWin.onIntentReply(({ id, result }) => {

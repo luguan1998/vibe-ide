@@ -113,6 +113,14 @@ body, .session-item, .right-panel__tab, .git-tab__branch-name {
    3. AI-TAB & PLAN （右侧：誓约面板与血染纸卷）
    ========================================================================== */
 
+/* AI 输入框：比侧栏抬亮一档的锻铁台面，与暗底拉开层次 */
+.ai-tab__input-pill {
+  background: rgb(38 33 28) !important;
+}
+.ai-tab__input-pill:not(:focus-within) {
+  border-color: rgb(74 63 53) !important;
+}
+
 /* 用户气泡：游戏内捡到的“猎人笔记羊皮纸” */
 .ai-tab__user-bubble {
   background: linear-gradient(135deg, rgb(28 25 22) 0%, rgb(18 16 15) 100%) !important;
