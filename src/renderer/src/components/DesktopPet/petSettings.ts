@@ -1,4 +1,5 @@
 // 桌面宠物本地偏好（localStorage + 事件），供 DesktopPet 与外观面板共享。
+import type { PetWinPrefs } from '@shared/types'
 
 const SCALE_KEY = 'vibe-ide-pet-scale'
 const VISIBLE_KEY = 'vibe-ide-pet-visible'
@@ -149,4 +150,39 @@ export function onPetPrefsChanged(cb: () => void): () => void {
   const h = () => cb()
   window.addEventListener(EVENT, h)
   return () => window.removeEventListener(EVENT, h)
+}
+
+function readRecord(key: string): Record<string, any> {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return {}
+    const p = JSON.parse(raw)
+    return p && typeof p === 'object' ? p : {}
+  } catch { return {} }
+}
+
+// 跨窗口同步：app 窗口把偏好整份推进独立宠物窗口
+export function getPetPrefs(): PetWinPrefs {
+  return {
+    scale: getPetScale(),
+    visible: getPetVisible(),
+    frameRate: getPetFrameRate(),
+    listenAi: getPetListenAi(),
+    autoSuggest: getPetAutoSuggest(),
+    logicalStates: readRecord(LOGICAL_STATE_KEY),
+    logicalFrames: readRecord(LOGICAL_FRAMES_KEY),
+  }
+}
+
+export function applyPetPrefs(p: PetWinPrefs) {
+  try {
+    localStorage.setItem(SCALE_KEY, String(p.scale))
+    localStorage.setItem(VISIBLE_KEY, String(p.visible))
+    localStorage.setItem(FRAME_RATE_KEY, String(p.frameRate))
+    localStorage.setItem(LISTEN_AI_KEY, String(p.listenAi))
+    localStorage.setItem(AUTO_SUGGEST_KEY, String(p.autoSuggest))
+    localStorage.setItem(LOGICAL_STATE_KEY, JSON.stringify(p.logicalStates))
+    localStorage.setItem(LOGICAL_FRAMES_KEY, JSON.stringify(p.logicalFrames))
+  } catch {}
+  emit()
 }

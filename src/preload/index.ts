@@ -241,6 +241,71 @@ const api = {
     toggle: (filename: string, enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.SNIPPETS_TOGGLE, filename, enabled) as Promise<import('../shared/types').SnippetsLoadResult>
   },
 
+  // 独立宠物窗口桥（app 窗口 ⇄ main ⇄ pet 窗口）
+  petWin: {
+    ready: () => ipcRenderer.send(IPC_CHANNELS.PETWIN_READY),
+    pushState: (state: import('../shared/types').PetWinState) => ipcRenderer.send(IPC_CHANNELS.PETWIN_PUSH, state),
+    pushEvent: (evt: import('../shared/types').PetWinEvent) => ipcRenderer.send(IPC_CHANNELS.PETWIN_EVENT, evt),
+    onState: (callback: (state: import('../shared/types').PetWinState) => void) => {
+      const handler = (_e: any, state: any) => callback(state)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_STATE, handler)
+      return handler
+    },
+    removeStateListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_STATE, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_STATE)
+    },
+    onEvent: (callback: (evt: import('../shared/types').PetWinEvent) => void) => {
+      const handler = (_e: any, evt: any) => callback(evt)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_EVENT, handler)
+      return handler
+    },
+    removeEventListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_EVENT, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_EVENT)
+    },
+    sendIntent: (intent: import('../shared/types').PetWinIntent) => ipcRenderer.send(IPC_CHANNELS.PETWIN_INTENT, intent),
+    onIntent: (callback: (intent: import('../shared/types').PetWinIntent) => void) => {
+      const handler = (_e: any, intent: any) => callback(intent)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_INTENT, handler)
+      return handler
+    },
+    removeIntentListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_INTENT, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_INTENT)
+    },
+    replyIntent: (id: number, result: string) => ipcRenderer.send(IPC_CHANNELS.PETWIN_REPLY, { id, result }),
+    onIntentReply: (callback: (payload: { id: number; result: string }) => void) => {
+      const handler = (_e: any, payload: any) => callback(payload)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_REPLY, handler)
+      return handler
+    },
+    removeIntentReplyListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_REPLY, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_REPLY)
+    },
+    reportHits: (rects: import('../shared/types').PetWinRect[]) => ipcRenderer.send(IPC_CHANNELS.PETWIN_HITS, rects),
+    onResetPos: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_RESET_POS, handler)
+      return handler
+    },
+    removeResetPosListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_RESET_POS, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_RESET_POS)
+    },
+    onFocus: (callback: (focused: boolean) => void) => {
+      const handler = (_e: any, focused: boolean) => callback(focused)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_FOCUS, handler)
+      return handler
+    },
+    removeFocusListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_FOCUS, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_FOCUS)
+    },
+    resetPosition: () => ipcRenderer.send(IPC_CHANNELS.PETWIN_RESET_POS)
+  },
+
   // Pet（codex-style webp sprite sheet；exe 同目录 pets/<slug>/）
   pet: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.PET_LIST) as Promise<import('../shared/types').PetListResult>,

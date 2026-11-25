@@ -6,7 +6,7 @@ import { FolderOpen, RefreshCw, RotateCcw, Palette, PanelLeft, Code, PanelRightC
 import { syncTitleBarOverlay } from '../utils/titlebarSync'
 import { ModalOverlay } from './ModalOverlay'
 import { DEFAULT_SESSION_EMOJIS, type DefaultSessionIcon } from '../sessionRestore'
-import { getPetScale, setPetScale, getPetVisible, setPetVisible, resetPetPos, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, setPetListenAi, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
+import { getPetScale, setPetScale, getPetVisible, setPetVisible, onPetPrefsChanged, setPetLogicalState, setPetLogicalFrames, getPetFrameRate, setPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, setPetListenAi, PET_SCALE_MIN, PET_SCALE_MAX, PET_FRAME_RATE_MIN, PET_FRAME_RATE_MAX } from './DesktopPet/petSettings'
 import { resolveStateName, PET_LOGICAL_STATES, PET_LOGICAL_LABEL, DEFAULT_PET_LOGICAL_STATE } from './DesktopPet/stateMap'
 
 const FALLBACK_FONTS = [
@@ -836,7 +836,7 @@ const AppearancePanel = function AppearancePanel({
                   <div className="flex items-center justify-between px-1">
                     <span className="text-[12px] text-ide-text-muted">{t('Pet States')}</span>
                     <button
-                      onClick={() => resetPetPos()}
+                      onClick={() => window.api.petWin.resetPosition()}
                       title={t('Reset Position')}
                       className="shrink-0 p-1 text-ide-text-muted hover:bg-ide-hover hover:text-ide-text rounded transition-colors"
                     >

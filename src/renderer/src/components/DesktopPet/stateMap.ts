@@ -1,9 +1,10 @@
+import type { PetLogicalState } from '@shared/types'
 import { getPetLogicalStateOverride } from './petSettings'
 
 // App 级逻辑状态：idle 空闲 / busy 忙碌 / approval 审批 / unfocused 未聚焦。
 // 优先级（高→低）：approval > busy > unfocused > idle。
 // doubleTap / sendMessage 为单次触发事件，不参与持久状态优先级链。
-export type PetLogicalState = 'idle' | 'busy' | 'approval' | 'unfocused' | 'doubleTap' | 'sendMessage'
+export type { PetLogicalState }
 
 // 逻辑状态 → manifest 默认 state 名（用户可在设置里覆盖）。
 export const DEFAULT_PET_LOGICAL_STATE: Record<PetLogicalState, string> = {

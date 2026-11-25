@@ -9,7 +9,7 @@
     "predev": "node scripts/prepare-clangd.mjs",
     "dev": "electron-vite dev",
     "prebuild": "node scripts/prepare-clangd.mjs",
-    "build": "electron-vite build",
+    "build": "electron-vite build && vite build --config vite.pet.config.ts",
     "typecheck": "tsc -b",
     "preview": "electron-vite preview",
     "test": "node --test --test-reporter=spec test/**/*.test.mjs",

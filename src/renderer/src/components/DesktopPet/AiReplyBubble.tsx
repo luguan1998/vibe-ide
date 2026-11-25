@@ -1,5 +1,5 @@
 import React from 'react'
-import { ChatMarkdown } from '../AiTab'
+import { ChatMarkdown } from '../AiTab/markdown'
 
 export const AiReplyBubble = React.memo(function AiReplyBubble({ text, align = 'center' }: { text: string; align?: 'center' | 'left' | 'right' }) {
   if (!text.trim()) return null

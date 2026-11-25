@@ -2,12 +2,18 @@ import { BrowserWindow } from 'electron'
 import { IPC_CHANNELS } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
+let petWindow: BrowserWindow | null = null
 let rendererVisible = true
 
 // 窗口可能在运行期重建（macOS activate 等），快照引用会失效，
 // 由 index.ts 在窗口创建/销毁时同步更新。
 export function setAiMainWindow(win: BrowserWindow | null): void {
   mainWindow = win
+}
+
+// 独立宠物窗口自己订阅 AI_REPLY（监听 AI 回复气泡），其余流式事件仍只发主窗口
+export function setAiPetWindow(win: BrowserWindow | null): void {
+  petWindow = win
 }
 
 export function setRendererVisible(visible: boolean): void {
@@ -18,6 +24,9 @@ export function send(channel: string, data: any): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (channel === IPC_CHANNELS.AI_STREAM_TOKEN && !rendererVisible) return
     mainWindow.webContents.send(channel, data)
+  }
+  if (channel === IPC_CHANNELS.AI_REPLY && petWindow && !petWindow.isDestroyed()) {
+    petWindow.webContents.send(channel, data)
   }
 }
 

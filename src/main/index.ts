@@ -22,6 +22,7 @@ import { registerSearchHandlers } from './search'
 import { registerCodeGraphHandlers, closeCodeGraph } from './codegraph'
 import { registerLspHandlers, cleanupLsp } from './lsp'
 import { recognizeImage, terminateOcrWorker } from './ocr'
+import { registerPetWindowHandlers } from './pet-window'
 import { IPC_CHANNELS, SnippetInfo } from '../shared/types'
 
 // Derive a path-specific instance lock so different exe copies run concurrently
@@ -243,6 +244,7 @@ app.whenReady().then(() => {
 
   // Register PTY handlers after window is created
   registerPtyHandlers()
+  registerPetWindowHandlers(() => mainWindow)
   registerBoardHandlers()
   registerSshHandlers()
   registerAiHandlers()

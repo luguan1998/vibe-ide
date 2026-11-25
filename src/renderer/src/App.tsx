@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useMemo, lazy, Suspense, useRef, useEffect, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { loadSessionWorkspace, saveSessionWorkspace, resolveDefaultIcon, defaultSessionName, sessionGroupKey, isDefaultSessionName, isSshSession, type Session, type SessionTab } from './sessionRestore'
 import { hasSchedTask } from './schedStore'
@@ -18,7 +18,7 @@ import PdfPreview from './components/PdfPreview'
 import BrowserView, { BrowserViewHandle, setBrowserStartUrl } from './components/BrowserView'
 import WelcomeScreen from './components/WelcomeScreen'
 import CallGraphOverlay from './components/CallGraphOverlay'
-import { DesktopPet, type PetLogicalState } from './components/DesktopPet'
+import { getPetPrefs, onPetPrefsChanged } from './components/DesktopPet/petSettings'
 import SearchPanel from './components/SearchPanel'
 import { ModalOverlay } from './components/ModalOverlay'
 import { DirectoryPicker } from './components/DirectoryPicker'
@@ -31,8 +31,9 @@ import BoardView, { BOARD_FOCUS } from './components/BoardView'
 import { aiStore, readAiCliConfig, queuePendingSend } from './aiStore'
 import { CodeGraphSearch } from './components/CodeGraphSearch'
 import { CodeGraphExploreResult } from './components/CodeGraphExploreResult'
-import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, QUICK_OPEN_EVENT, toRelPath } from './components/vibeEvents'
-import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER } from '@shared/types'
+import { ADD_ANNOTATION_EVENT, QUICK_OPEN_EVENT, toRelPath } from './components/vibeEvents'
+import { TerminalSession, AuxTerminalTab, RenameTerminalResult, AiPermissionMode, RecentFileEntry, WorktreeRecord, PrProviderView, PrProviderInput, PrRemoteInfo, CreatePrPayload, PrResult, PrTestInput, PrTestResult, PrListResult, PrConflictResult, AiGraphNode, LSP_SERVERS, LSP_LANG_TO_SERVER, type PetLogicalState, type PetWinState } from '@shared/types'
+import { useTheme } from './themes'
 import { getShortcuts, eventMatchesBinding, eventIsModifierPress, parseKeybinding } from './shortcuts'
 import { useI18n } from './i18n'
 import { cwdStore, useGroupOrder, useEmptyGroups, orderGroups } from './cwdStore'
@@ -311,6 +312,27 @@ declare global {
         onChanged: (callback: () => void) => any
         removeChangedListener: (handler?: any) => void
       }
+      petWin: {
+        ready: () => void
+        pushState: (state: import('@shared/types').PetWinState) => void
+        pushEvent: (evt: import('@shared/types').PetWinEvent) => void
+        onState: (callback: (state: import('@shared/types').PetWinState) => void) => any
+        removeStateListener: (handler?: any) => void
+        onEvent: (callback: (evt: import('@shared/types').PetWinEvent) => void) => any
+        removeEventListener: (handler?: any) => void
+        sendIntent: (intent: import('@shared/types').PetWinIntent) => void
+        onIntent: (callback: (intent: import('@shared/types').PetWinIntent) => void) => any
+        removeIntentListener: (handler?: any) => void
+        replyIntent: (id: number, result: string) => void
+        onIntentReply: (callback: (payload: { id: number; result: string }) => void) => any
+        removeIntentReplyListener: (handler?: any) => void
+        reportHits: (rects: import('@shared/types').PetWinRect[]) => void
+        onResetPos: (callback: () => void) => any
+        removeResetPosListener: (handler?: any) => void
+        onFocus: (callback: (focused: boolean) => void) => any
+        removeFocusListener: (handler?: any) => void
+        resetPosition: () => void
+      }
     }
   }
 }
@@ -368,13 +390,14 @@ function HistoryCopyButton({ cmd }: { cmd: string }) {
   )
 }
 
-// /btw side-question result → desktop pet bubble (DesktopPet subscribes BTW_REPLY_EVENT)
+// /btw side-question result → 独立宠物窗口气泡
 function dispatchBtwReply(detail: { pending?: boolean; text?: string | null; error?: string }): void {
-  window.dispatchEvent(new CustomEvent(BTW_REPLY_EVENT, { detail }))
+  window.api.petWin.pushEvent({ type: 'btwReply', detail })
 }
 
 export default function App() {
   const { t } = useI18n()
+  const { currentThemeId } = useTheme()
   const [initialWorkspace] = useState(loadSessionWorkspace)
   // 所有 terminal 一律恢复（按需加载：首次成为 active 时才建真实 PTY，见 ensureSessionLoaded）
   const initialTabs = useMemo(
@@ -679,6 +702,11 @@ export default function App() {
   }, [])
   // 整个 app 是否聚焦（window blur / 最小化 → false），用于宠物 unfocused 状态
   const [appFocused, setAppFocused] = useState(true)
+  // 独立宠物窗口有自己的焦点；点宠物本体不应让宠物自己变睡眠态
+  const [petFocused, setPetFocused] = useState(false)
+  // 当前会话在失焦期间跑完 → 保持警告态，直到用户回到 IDE
+  const [completedUnfocused, setCompletedUnfocused] = useState(false)
+  const petPrevBusyRef = useRef<{ sid: string | null; busy: boolean }>({ sid: null, busy: false })
   // 会话忙碌唯一真相源：有 7501 上报时以程序状态为准（blocked/error 仍算忙碌，避免权限弹窗误判完成），否则回落启发式
   const sessionBusy = useMemo(() => {
     const result: Record<string, boolean> = {}
@@ -790,14 +818,57 @@ export default function App() {
     }
   }, [])
 
-  // 宠物逻辑状态：approval(全局) > busy(当前 session terminal|ai) > unfocused > idle
+  // 宠物逻辑状态：approval(全局) > busy(当前 session terminal|ai) > 失焦完成(警告) > unfocused > idle
   const petLogicalState = useMemo<PetLogicalState>(() => {
     if (Object.values(warnSessions).some(Boolean)) return 'approval'
     const sid = activeSessionId ?? ''
     if (sessionBusy[sid]) return 'busy'
-    if (!appFocused) return 'unfocused'
+    if (!appFocused && !petFocused) return completedUnfocused ? 'approval' : 'unfocused'
     return 'idle'
-  }, [warnSessions, sessionBusy, activeSessionId, appFocused])
+  }, [warnSessions, sessionBusy, activeSessionId, appFocused, petFocused, completedUnfocused])
+
+  // 失焦期间当前会话 busy → idle：标记警告态；回到 IDE 或切会话后清除
+  useEffect(() => {
+    const sid = activeSessionId
+    const busy = !!sessionBusy[sid ?? '']
+    const prev = petPrevBusyRef.current
+    petPrevBusyRef.current = { sid, busy }
+    if (appFocused || petFocused) {
+      if (completedUnfocused) setCompletedUnfocused(false)
+      return
+    }
+    if (prev.sid !== sid) {
+      if (completedUnfocused) setCompletedUnfocused(false)
+      return
+    }
+    if (prev.busy && !busy) setCompletedUnfocused(true)
+  }, [sessionBusy, activeSessionId, appFocused, petFocused, completedUnfocused])
+
+  // 独立宠物窗口：状态快照（app 是唯一真相源，宠物窗口只渲染）
+  const [petPrefsTick, setPetPrefsTick] = useState(0)
+  useEffect(() => onPetPrefsChanged(() => setPetPrefsTick(v => v + 1)), [])
+  useEffect(() => {
+    const h = window.api.petWin.onFocus(setPetFocused)
+    return () => window.api.petWin.removeFocusListener(h)
+  }, [])
+  const petAiKey = useSyncExternalStore(aiStore.subscribe, () => {
+    const s = aiStore.getSnapshot(activeSessionId)
+    return `${s.ready ? 1 : 0}|${s.backend}|${s.busy ? 1 : 0}|${s.messages.length > 0 ? 1 : 0}`
+  })
+  useEffect(() => {
+    const [ready, backend, busy, has] = petAiKey.split('|')
+    const state: PetWinState = {
+      logicalState: petLogicalState,
+      activeSessionId,
+      activeSessionCwd,
+      sessions: sessions.map(s => ({ id: s.id, cwd: s.cwd, kind: s.kind })),
+      ai: { ready: ready === '1', backend, busy: busy === '1', hasMessages: has === '1' },
+      aiConfigDir: readAiCliConfig().configDir,
+      themeId: currentThemeId,
+      prefs: getPetPrefs()
+    }
+    window.api.petWin.pushState(state)
+  }, [petLogicalState, activeSessionId, activeSessionCwd, sessions, petAiKey, currentThemeId, petPrefsTick])
 
   const [aiPermissionModes, setAiPermissionModes] = useState<Record<string, AiPermissionMode>>({})
   // GitTab 手动导航打开的工作树浏览态（仅内存）；会话自身的 worktree 身份从 SessionTab 字段派生，
@@ -1328,7 +1399,7 @@ export default function App() {
     if (mode === 'gui') {
       // /btw prefix → non-interrupting side question. This funnel is the single
       // entry for keypad / context input, so detection lives here once and the
-      // pet stays dumb. Answer returns via BTW_REPLY_EVENT.
+      // pet stays dumb. Answer returns via petWin btwReply event.
       const btw = /^\s*\/btw\b\s*([\s\S]*)$/i.exec(text)
       if (btw) {
         const question = btw[1].trim()
@@ -1483,6 +1554,23 @@ export default function App() {
   cancelPipeRef.current = cancelPipe
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
+
+  // 宠物窗口意图 → 主窗口执行（终端写入 / AI 发送 / 读取中间栏草稿）
+  useEffect(() => {
+    const h = window.api.petWin.onIntent((intent) => {
+      if (intent.type === 'sendLine') {
+        void sendDraftLine(activeSessionIdRef.current, intent.text || '')
+        return
+      }
+      if (intent.type === 'sendLineTo') {
+        void sendDraftLine(intent.sessionId ?? activeSessionIdRef.current, intent.text || '')
+        return
+      }
+      if (intent.type === 'getInput') window.api.petWin.replyIntent(intent.id, (window as any).__vibeGetInput?.() ?? '')
+    })
+    return () => window.api.petWin.removeIntentListener(h)
+  }, [sendDraftLine])
+
   const handleProgramStatusChange = useCallback((sessionId: string, status: ProgramStatus | null) => {
     // 全屏 TUI 走 alternate screen，启发式的 running→idle 边沿被旁路，done 只能由协议自己点亮未读
     if (status?.state === 'done' && sessionId !== activeSessionIdRef.current && !warnSessionsRef.current[sessionId]) {
@@ -1565,6 +1653,16 @@ export default function App() {
       if (!sid) return
       const d = (e as CustomEvent).detail as { rel: string; start?: number; end?: number }
       aiTabRefs.current[sid]?.addRef(d.rel, d.start, d.end)
+    }
+    window.addEventListener(ADD_ANNOTATION_EVENT, handler)
+    return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
+  }, [])
+
+  // 未落到 AiTab 的注释转发给独立宠物窗口（用户在主窗口选中文件/代码想插话时）
+  useEffect(() => {
+    const handler = (e: Event) => {
+      if ((window as any).__vibeAnnotationToAi?.()) return
+      window.api.petWin.pushEvent({ type: 'annotation', detail: (e as CustomEvent).detail })
     }
     window.addEventListener(ADD_ANNOTATION_EVENT, handler)
     return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
@@ -4497,13 +4595,6 @@ export default function App() {
         />
       )}
 
-      {/* Desktop pet — warn>busy>unfocused>idle，跟随活跃 session 与窗口聚焦 */}
-      <DesktopPet
-        logicalState={petLogicalState}
-        activeSessionId={activeSessionId}
-        activeSessionCwd={activeSessionCwd}
-        sessions={sessions}
-      />
     </div>
   )
 

@@ -50,6 +50,17 @@ html, body, #root {
   color: rgb(var(--ide-text));
 }
 
+/* 独立宠物窗口：整个页面透明，只画精灵与气泡 */
+html.pet-window,
+html.pet-window body,
+html.pet-window #root {
+  background: transparent !important;
+}
+html.pet-window .desktop-pet__bubbles {
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 14px;

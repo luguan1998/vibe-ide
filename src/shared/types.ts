@@ -226,7 +226,18 @@ export const IPC_CHANNELS = {
   PET_LIST: 'pet:list',
   PET_SET_ACTIVE: 'pet:setActive',
   PET_DELETE: 'pet:delete',
-  PET_CHANGED: 'pet:changed'        // push: import/delete 后通知 renderer 重载
+  PET_CHANGED: 'pet:changed',       // push: import/delete 后通知 renderer 重载
+
+  // Pet floating window (app window ⇄ main ⇄ pet window)
+  PETWIN_PUSH: 'petWin:push',             // app → main: 全量状态快照（main 缓存并转发）
+  PETWIN_STATE: 'petWin:state',           // main → pet: 状态快照
+  PETWIN_EVENT: 'petWin:event',           // app → main → pet: 一次性事件（旁路回复/注释）
+  PETWIN_INTENT: 'petWin:intent',         // pet → main → app: 用户意图
+  PETWIN_REPLY: 'petWin:reply',           // app → main → pet: 意图结果
+  PETWIN_HITS: 'petWin:hits',             // pet → main: 可点击矩形（窗口内 CSS px）
+  PETWIN_READY: 'petWin:ready',           // pet → main: 请求缓存状态
+  PETWIN_FOCUS: 'petWin:focus',           // main → app: 宠物窗口焦点变化
+  PETWIN_RESET_POS: 'petWin:resetPos'     // app → main: 重置宠物窗口位置
 } as const
 
 // LSP types
@@ -354,6 +365,52 @@ export interface PetListResult {
   pets: PetManifest[]
   activeId: string | null
   dir: string
+}
+
+// Pet floating window: app 窗口是状态真相源，宠物窗口只渲染并回传意图
+export type PetLogicalState = 'idle' | 'busy' | 'approval' | 'unfocused' | 'doubleTap' | 'sendMessage'
+
+export interface PetWinRect { x: number; y: number; w: number; h: number }
+
+export interface PetWinAiSnapshot {
+  ready: boolean
+  backend: string
+  busy: boolean
+  hasMessages: boolean
+}
+
+export interface PetWinPrefs {
+  scale: number
+  visible: boolean
+  frameRate: number
+  listenAi: boolean
+  autoSuggest: boolean
+  logicalStates: Record<string, string>
+  logicalFrames: Record<string, number>
+}
+
+export interface PetWinState {
+  logicalState: PetLogicalState
+  activeSessionId: string | null
+  activeSessionCwd: string | null
+  sessions: { id: string; cwd: string; kind?: string }[]
+  ai: PetWinAiSnapshot
+  aiConfigDir?: string
+  themeId: string
+  prefs: PetWinPrefs
+}
+
+export type PetWinEvent =
+  | { type: 'btwReply'; detail: { pending?: boolean; text?: string | null; error?: string } }
+  | { type: 'annotation'; detail: { rel: string; start?: number; end?: number } }
+
+export type PetWinIntentType = 'sendLine' | 'sendLineTo' | 'getInput'
+
+export interface PetWinIntent {
+  id: number
+  type: PetWinIntentType
+  text?: string
+  sessionId?: string | null
 }
 
 // Terminal types
