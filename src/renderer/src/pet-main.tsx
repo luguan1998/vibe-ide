@@ -8,36 +8,13 @@ import { PetWindowRoot } from './components/DesktopPet/PetWindowRoot'
 import { setMonacoPreInit } from './utils/monacoSingleton'
 import './styles/globals.css'
 
-// AI 回复里的代码块要用 monaco colorize：首次出现时动态加载，避免宠物窗口预载 6MB
+// AI 回复里的代码块要用 monaco colorize：首次出现时动态加载，避免宠物窗口预载 6MB。
+// 只 colorize 不建 model，语言服务 worker（ts/json/css/html）用不到，不打包。
 setMonacoPreInit(async () => {
   const monaco = await import('monaco-editor')
-  const [EditorWorker, TsWorker, JsonWorker, CssWorker, HtmlWorker] = await Promise.all([
-    import('monaco-editor/esm/vs/editor/editor.worker?worker'),
-    import('monaco-editor/esm/vs/language/typescript/ts.worker?worker'),
-    import('monaco-editor/esm/vs/language/json/json.worker?worker'),
-    import('monaco-editor/esm/vs/language/css/css.worker?worker'),
-    import('monaco-editor/esm/vs/language/html/html.worker?worker')
-  ])
+  const EditorWorker = await import('monaco-editor/esm/vs/editor/editor.worker?worker')
   ;(window as any).MonacoEnvironment = {
-    getWorker(_workerId: string, label: string): Worker {
-      switch (label) {
-        case 'typescript':
-        case 'javascript':
-          return new TsWorker.default()
-        case 'json':
-          return new JsonWorker.default()
-        case 'css':
-        case 'scss':
-        case 'less':
-          return new CssWorker.default()
-        case 'html':
-        case 'handlebars':
-        case 'razor':
-          return new HtmlWorker.default()
-        default:
-          return new EditorWorker.default()
-      }
-    }
+    getWorker(): Worker { return new EditorWorker.default() }
   }
   loader.config({ monaco })
 })
