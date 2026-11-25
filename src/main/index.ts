@@ -37,9 +37,6 @@ let cachedFontList: string[] | null = null
 // Fix Windows permission issues
 app.commandLine.appendSwitch('no-sandbox')
 app.commandLine.appendSwitch('proxy-bypass-list', '<local>;127.0.0.1;localhost')
-// 独立宠物窗口是全屏置顶：点击/悬停时它会摘掉 WS_EX_TRANSPARENT，主窗口被判 fully occluded
-// → document.hidden、AI_STREAM_TOKEN 被丢、rAF 停。关掉遮挡后台化，最小化仍正常节流。
-app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 // app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096')
 
 // 测试模式下启用精确内存信息，供 performance.memory 采集渲染进程 JSHeap

@@ -1,23 +1,28 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
-import { IPC_CHANNELS, type PetWinRect, type PetWinState, type PetWinPoint, type PetWinDragResult } from '../shared/types'
+import { IPC_CHANNELS, type PetWinLayout, type PetWinRect, type PetWinState, type PetWinPoint, type PetWinDragResult } from '../shared/types'
 import { is } from '@electron-toolkit/utils'
 import { setAiPetWindow } from './ai-shared'
 
-// 独立宠物窗口：铺满某个显示器的工作区（透明置顶）。
-// 精灵位置用「全局屏幕 DIP」做主进程唯一真源；拖到另一块屏时窗口整体搬过去，
-// 再把屏幕坐标换算成新窗口内的局部坐标推给渲染层。
+// 独立宠物窗口：尺寸 = 精灵 + 固定余量（气泡/菜单空间），随精灵平移并在屏幕内 clamp。
+// 精灵位置用「全局屏幕 DIP」做主进程唯一真源；渲染层只渲染窗口内的局部坐标。
 
 const POLL_MS = 55
 const LEAVE_GRACE_MS = 160
 const DRAG_POLL_MS = 16
 const DRAG_THRESHOLD = 4
 const EDGE_KEEP = 8
+const SPRITE_INSET = 8
+const EXTRA_W = 360
+const EXTRA_H = 320
+const DEFAULT_SPRITE_W = 96
+const DEFAULT_SPRITE_H = 104
 
 let petWindow: BrowserWindow | null = null
 let mainWindow: BrowserWindow | null = null
 let cachedState: PetWinState | null = null
 let hitRects: PetWinRect[] = []
+let spriteRect: PetWinRect | null = null
 let ignoring = true
 let lastInside = false
 let leaveAt = 0
@@ -25,6 +30,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let currentDisplayId: number | null = null
 let lastVisible: boolean | null = null
 let spriteScreen: PetWinPoint | null = null
+let spriteLocal: PetWinPoint = { x: SPRITE_INSET, y: SPRITE_INSET }
 
 interface DragSession {
   grabX: number
@@ -33,6 +39,7 @@ interface DragSession {
   lastX: number
   moved: boolean
   dir: 'left' | 'right' | null
+  anchor: PetWinPoint
   timer: ReturnType<typeof setInterval> | null
 }
 
@@ -43,11 +50,31 @@ function defaultDisplay() {
   return screen.getPrimaryDisplay()
 }
 
-function clampLocal(p: PetWinPoint, wa: Electron.Rectangle): PetWinPoint {
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v))
+}
+
+function spriteSize() {
   return {
-    x: Math.max(0, Math.min(wa.width - EDGE_KEEP, p.x)),
-    y: Math.max(0, Math.min(wa.height - EDGE_KEEP, p.y))
+    w: spriteRect && spriteRect.w > 0 ? spriteRect.w : DEFAULT_SPRITE_W,
+    h: spriteRect && spriteRect.h > 0 ? spriteRect.h : DEFAULT_SPRITE_H
   }
+}
+
+function windowSize(wa: Electron.Rectangle) {
+  const s = spriteSize()
+  return {
+    w: Math.min(wa.width, s.w + EXTRA_W),
+    h: Math.min(wa.height, s.h + EXTRA_H)
+  }
+}
+
+function sendToPet(channel: string, data?: unknown) {
+  if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send(channel, data)
+}
+
+function sendFocus(focused: boolean) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC_CHANNELS.PETWIN_FOCUS, focused)
 }
 
 function setIgnore(ignore: boolean) {
@@ -57,9 +84,46 @@ function setIgnore(ignore: boolean) {
   petWindow.setIgnoreMouseEvents(ignore)
 }
 
-function cursorInRects(): boolean {
+function applyLayout(anchor?: PetWinPoint) {
+  if (!petWindow || petWindow.isDestroyed()) return
+  const disp = spriteScreen
+    ? screen.getDisplayNearestPoint({ x: Math.round(spriteScreen.x), y: Math.round(spriteScreen.y) })
+    : defaultDisplay()
+  const wa = disp.workArea
+  const { w, h } = windowSize(wa)
+  if (!spriteScreen) {
+    const s = spriteSize()
+    spriteScreen = { x: wa.x + SPRITE_INSET, y: wa.y + wa.height - s.h - SPRITE_INSET }
+    applyLayout({ x: SPRITE_INSET, y: h - s.h - SPRITE_INSET })
+    return
+  }
+  const a = anchor ?? spriteLocal
+  const ox = clamp(spriteScreen.x - a.x, wa.x, wa.x + wa.width - w)
+  const oy = clamp(spriteScreen.y - a.y, wa.y, wa.y + wa.height - h)
+  const next = { x: spriteScreen.x - ox, y: spriteScreen.y - oy }
+  const b = petWindow.getBounds()
+  if (b.width !== w || b.height !== h) petWindow.setBounds({ x: ox, y: oy, width: w, height: h })
+  else if (b.x !== ox || b.y !== oy) petWindow.setPosition(ox, oy)
+  currentDisplayId = disp.id
+  if (next.x !== spriteLocal.x || next.y !== spriteLocal.y) {
+    spriteLocal = next
+    sendToPet(IPC_CHANNELS.PETWIN_SPRITE_POS, next)
+  }
+}
+
+function resetSprite() {
+  stopDrag()
+  spriteScreen = null
+  if (!petWindow || petWindow.isDestroyed()) return
+  const wa = defaultDisplay().workArea
+  const { w, h } = windowSize(wa)
+  petWindow.setBounds({ x: wa.x, y: wa.y + wa.height - h, width: w, height: h })
+  currentDisplayId = defaultDisplay().id
+  sendToPet(IPC_CHANNELS.PETWIN_RESET_POS)
+}
+
+function cursorInRects(pt: Electron.Point): boolean {
   if (!petWindow || petWindow.isDestroyed() || hitRects.length === 0) return false
-  const pt = screen.getCursorScreenPoint()
   const b = petWindow.getBounds()
   const x = pt.x - b.x
   const y = pt.y - b.y
@@ -71,27 +135,37 @@ function cursorInRects(): boolean {
 
 function tick() {
   if (!petWindow || petWindow.isDestroyed() || !petWindow.isVisible()) return
-  if (drag) {
-    setIgnore(false)
+  if (!drag) {
+    const b = petWindow.getBounds()
+    const pt = screen.getCursorScreenPoint()
+    const x = pt.x - b.x
+    const y = pt.y - b.y
+    if (x < 0 || y < 0 || x > b.width || y > b.height) {
+      lastInside = false
+      leaveAt = 0
+      setIgnore(true)
+      return
+    }
+    if (cursorInRects(pt)) {
+      leaveAt = 0
+      lastInside = true
+      setIgnore(false)
+      return
+    }
+    if (lastInside) {
+      lastInside = false
+      leaveAt = Date.now()
+      return
+    }
+    if (leaveAt && Date.now() - leaveAt >= LEAVE_GRACE_MS) {
+      leaveAt = 0
+      setIgnore(true)
+    } else if (!leaveAt) {
+      setIgnore(true)
+    }
     return
   }
-  if (cursorInRects()) {
-    leaveAt = 0
-    lastInside = true
-    setIgnore(false)
-    return
-  }
-  if (lastInside) {
-    lastInside = false
-    leaveAt = Date.now()
-    return
-  }
-  if (leaveAt && Date.now() - leaveAt >= LEAVE_GRACE_MS) {
-    leaveAt = 0
-    setIgnore(true)
-  } else if (!leaveAt) {
-    setIgnore(true)
-  }
+  setIgnore(false)
 }
 
 function startPolling() {
@@ -103,29 +177,6 @@ function stopPolling() {
   if (!pollTimer) return
   clearInterval(pollTimer)
   pollTimer = null
-}
-
-function sendToPet(channel: string, data?: unknown) {
-  if (petWindow && !petWindow.isDestroyed()) petWindow.webContents.send(channel, data)
-}
-
-function sendFocus(focused: boolean) {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(IPC_CHANNELS.PETWIN_FOCUS, focused)
-}
-
-function moveWindowToDisplay(display: Electron.Display) {
-  if (!petWindow || petWindow.isDestroyed()) return
-  const wa = display.workArea
-  petWindow.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height })
-  currentDisplayId = display.id
-}
-
-function resetSprite() {
-  stopDrag()
-  spriteScreen = null
-  if (!petWindow || petWindow.isDestroyed()) return
-  moveWindowToDisplay(defaultDisplay())
-  sendToPet(IPC_CHANNELS.PETWIN_RESET_POS)
 }
 
 function stopDrag() {
@@ -147,10 +198,12 @@ function startDrag(rect: PetWinPoint) {
     lastX: cursor.x,
     moved: false,
     dir: null,
+    anchor: { x: rect.x, y: rect.y },
     timer: null
   }
   drag = session
   spriteScreen = sprite
+  spriteLocal = { x: rect.x, y: rect.y }
   session.timer = setInterval(() => {
     if (!drag || !petWindow || petWindow.isDestroyed()) { stopDrag(); return }
     const cur = screen.getCursorScreenPoint()
@@ -161,11 +214,13 @@ function startDrag(rect: PetWinPoint) {
       sendToPet(IPC_CHANNELS.PETWIN_DRAG_STATE, { moved: true, dir: null })
     }
     const display = screen.getDisplayNearestPoint(cur)
-    if (display.id !== currentDisplayId) moveWindowToDisplay(display)
+    if (display.id !== currentDisplayId) currentDisplayId = display.id
     const wa = display.workArea
-    const local = clampLocal({ x: target.x - wa.x, y: target.y - wa.y }, wa)
-    spriteScreen = { x: wa.x + local.x, y: wa.y + local.y }
-    sendToPet(IPC_CHANNELS.PETWIN_SPRITE_POS, local)
+    spriteScreen = {
+      x: clamp(target.x, wa.x, wa.x + wa.width - EDGE_KEEP),
+      y: clamp(target.y, wa.y, wa.y + wa.height - EDGE_KEEP)
+    }
+    applyLayout(drag.anchor)
     const dir = cur.x > drag.lastX ? 'right' : cur.x < drag.lastX ? 'left' : drag.dir
     if (dir !== drag.dir) {
       drag.dir = dir
@@ -188,11 +243,12 @@ function endDrag(): PetWinDragResult {
 function createPetWindow(): BrowserWindow {
   const display = defaultDisplay()
   const wa = display.workArea
+  const { w, h } = windowSize(wa)
   const win = new BrowserWindow({
     x: wa.x,
-    y: wa.y,
-    width: wa.width,
-    height: wa.height,
+    y: wa.y + wa.height - h,
+    width: w,
+    height: h,
     show: false,
     frame: false,
     transparent: true,
@@ -217,10 +273,11 @@ function createPetWindow(): BrowserWindow {
   })
 
   // 构造参数里的尺寸按主屏 DPI 解释，副屏创建时会被缩错；显式 setBounds 一次校正
-  win.setBounds({ x: wa.x, y: wa.y, width: wa.width, height: wa.height })
+  win.setBounds({ x: wa.x, y: wa.y + wa.height - h, width: w, height: h })
 
   currentDisplayId = display.id
   spriteScreen = null
+  spriteLocal = { x: SPRITE_INSET, y: h - spriteSize().h - SPRITE_INSET }
 
   win.setMenu(null)
   win.setIgnoreMouseEvents(true)
@@ -233,6 +290,7 @@ function createPetWindow(): BrowserWindow {
 
   win.webContents.on('did-finish-load', () => {
     if (cachedState) win.webContents.send(IPC_CHANNELS.PETWIN_STATE, cachedState)
+    sendToPet(IPC_CHANNELS.PETWIN_SPRITE_POS, spriteLocal)
     if (cachedState?.prefs.visible !== false) win.showInactive()
     startPolling()
   })
@@ -245,6 +303,9 @@ function createPetWindow(): BrowserWindow {
     stopPolling()
     petWindow = null
     currentDisplayId = null
+    spriteScreen = null
+    spriteRect = null
+    hitRects = []
     setAiPetWindow(null)
   })
 
@@ -270,12 +331,10 @@ export function registerPetWindowHandlers(getMainWindow: () => BrowserWindow | n
     lastVisible = state.prefs.visible
     if (!state.prefs.visible) {
       stopDrag()
-      if (petWindow && !petWindow.isDestroyed()) {
-        setIgnore(true)
-        lastInside = false
-        leaveAt = 0
-        petWindow.hide()
-      }
+      stopPolling()
+      if (petWindow && !petWindow.isDestroyed()) petWindow.destroy()
+      petWindow = null
+      setAiPetWindow(null)
       return
     }
     const win = ensurePetWindow()
@@ -302,8 +361,19 @@ export function registerPetWindowHandlers(getMainWindow: () => BrowserWindow | n
     sendToPet(IPC_CHANNELS.PETWIN_REPLY, payload)
   })
 
-  ipcMain.on(IPC_CHANNELS.PETWIN_HITS, (_event, rects: PetWinRect[]) => {
-    hitRects = Array.isArray(rects) ? rects : []
+  ipcMain.on(IPC_CHANNELS.PETWIN_HITS, (_event, layout: PetWinLayout) => {
+    hitRects = Array.isArray(layout?.hits) ? layout.hits : []
+    const sp = layout?.sprite
+    if (sp && sp.w > 0 && sp.h > 0) {
+      spriteRect = sp
+      if (!spriteScreen && petWindow && !petWindow.isDestroyed()) {
+        const b = petWindow.getBounds()
+        spriteScreen = { x: b.x + sp.x, y: b.y + sp.y }
+        applyLayout({ x: sp.x, y: sp.y })
+      } else {
+        applyLayout()
+      }
+    }
     tick()
   })
 

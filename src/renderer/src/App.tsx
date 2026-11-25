@@ -326,7 +326,7 @@ declare global {
         replyIntent: (id: number, result: string) => void
         onIntentReply: (callback: (payload: { id: number; result: string }) => void) => any
         removeIntentReplyListener: (handler?: any) => void
-        reportHits: (rects: import('@shared/types').PetWinRect[]) => void
+        reportLayout: (layout: import('@shared/types').PetWinLayout) => void
         onSpritePos: (callback: (p: import('@shared/types').PetWinPoint) => void) => any
         removeSpritePosListener: (handler?: any) => void
         drag: (action: 'start' | 'end', rect?: import('@shared/types').PetWinPoint) => Promise<import('@shared/types').PetWinDragResult | null>

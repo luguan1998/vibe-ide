@@ -284,7 +284,7 @@ const api = {
       if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_REPLY, handler)
       else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_REPLY)
     },
-    reportHits: (rects: import('../shared/types').PetWinRect[]) => ipcRenderer.send(IPC_CHANNELS.PETWIN_HITS, rects),
+    reportLayout: (layout: import('../shared/types').PetWinLayout) => ipcRenderer.send(IPC_CHANNELS.PETWIN_HITS, layout),
     onSpritePos: (callback: (p: import('../shared/types').PetWinPoint) => void) => {
       const handler = (_e: any, p: any) => callback(p)
       ipcRenderer.on(IPC_CHANNELS.PETWIN_SPRITE_POS, handler)

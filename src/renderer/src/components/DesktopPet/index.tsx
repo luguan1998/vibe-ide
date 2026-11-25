@@ -192,7 +192,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         const rect = wrapperRef.current?.getBoundingClientRect()
         setKeypadItems(loadKeypadItems())
         setAiBubbleOpen(false)
-        setPopupAbove(!!rect && rect.top > 240)
+        setPopupAbove(!!rect && rect.top > window.innerHeight - rect.bottom)
         setPopupOpen(true)
       }
     } catch (e: any) {
@@ -277,7 +277,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     singleClickTimerRef.current = setTimeout(() => {
       singleClickTimerRef.current = undefined
       setKeypadItems(loadKeypadItems())
-      setPopupAbove(rect.top > 240)
+      setPopupAbove(rect.top > window.innerHeight - rect.bottom)
       setAiBubbleOpen(false)
       const next = !popupOpen
       setPopupOpen(next)
@@ -334,7 +334,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     return () => window.api.petWin.removeDragStateListener(h)
   }, [])
 
-  // 可点击矩形上报给主进程（透明窗口靠它决定是否穿透）。next frame 上报，
+  // 可点击矩形 + 精灵矩形上报给主进程（透明窗口靠它决定穿透与窗口尺寸）。next frame 上报，
   // 等 textarea 自增高、气泡内容渲染完，避免命中区比实际气泡小
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -345,7 +345,11 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         const r = el.getBoundingClientRect()
         if (r.width > 0 && r.height > 0) rects.push({ x: r.x, y: r.y, w: r.width, h: r.height })
       })
-      window.api.petWin.reportHits(rects)
+      const sr = (root.querySelector('.desktop-pet__hitarea') as HTMLElement | null)?.getBoundingClientRect()
+      window.api.petWin.reportLayout({
+        hits: rects,
+        sprite: sr && sr.width > 0 && sr.height > 0 ? { x: sr.x, y: sr.y, w: sr.width, h: sr.height } : null
+      })
     })
     return () => cancelAnimationFrame(id)
   })
@@ -369,7 +373,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     if (aiBubbleOpen && latestReply) {
       setContextDir(rect.left + rect.width / 2 < window.innerWidth / 2 ? 'right' : 'left')
     } else {
-      setContextDir(rect.top > 240 ? 'above' : 'below')
+      setContextDir(rect.top > window.innerHeight - rect.bottom ? 'above' : 'below')
     }
     fillDraftFromCenter()
     setContextOpen(true)
@@ -572,7 +576,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const stateFrames = manifest.states[stateName]?.frames ?? 1
   const frames = dragDir ? stateFrames : getPetLogicalFramesOverride(effectiveLogicalState) ?? stateFrames
   const wrapperStyle: React.CSSProperties = pos
-    ? { left: Math.min(pos.left, window.innerWidth - 8), top: Math.min(pos.top, window.innerHeight - 8) }
+    ? { left: pos.left, top: pos.top }
     : { left: 8, bottom: 8 }
 
   // 组装气泡 section：速发键 → 拓展注册表（宠物选择/删除/打开文件夹已移至设置→外观）

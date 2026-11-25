@@ -375,6 +375,11 @@ export type PetLogicalState = 'idle' | 'busy' | 'approval' | 'unfocused' | 'doub
 
 export interface PetWinRect { x: number; y: number; w: number; h: number }
 
+export interface PetWinLayout {
+  hits: PetWinRect[]
+  sprite: PetWinRect | null
+}
+
 export interface PetWinAiSnapshot {
   ready: boolean
   backend: string

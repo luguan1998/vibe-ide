@@ -57,7 +57,7 @@ html.pet-window #root {
   background: transparent !important;
 }
 html.pet-window .desktop-pet__bubbles {
-  max-height: calc(100vh - 180px);
+  max-height: 280px;
   overflow-y: auto;
 }
 
