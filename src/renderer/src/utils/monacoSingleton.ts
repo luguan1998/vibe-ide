@@ -7,12 +7,6 @@ import { registerGodotSupport } from '@renderer/languages/godot-tokens'
 
 let monacoPromise: Promise<any> | null = null
 let registered = false
-let preInit: (() => Promise<void>) | null = null
-
-// 独立宠物窗口不预载 monaco：首次要用时再动态 import 并喂给 loader
-export function setMonacoPreInit(fn: () => Promise<void>): void {
-  preInit = fn
-}
 
 // ts.worker 唯一创建路径是 registerProviders 注册的 adapter（DiagnosticsAdapter 默认开，
 // model 一创建即自动触发 validate），且 registerProviders 只在首个 ts/js model 创建时执行一次。
@@ -32,7 +26,6 @@ function disableTsLanguageServices(monaco: any): void {
 export function getMonaco(): Promise<any> {
   if (!monacoPromise) {
     monacoPromise = Promise.resolve()
-      .then(() => preInit?.())
       .then(() => loader.init())
       .then(monaco => {
         if (!registered) {

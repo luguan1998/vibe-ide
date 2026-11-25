@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import * as monaco from 'monaco-editor'
 import { loader } from '@monaco-editor/react'
 import App from './App'
-import { ThemeProvider } from './themes'
+import { ThemeProvider, useTheme } from './themes'
 import { I18nProvider } from './i18n'
 import ErrorBoundary from './components/ErrorBoundary'
 import { getMonaco } from './utils/monacoSingleton'
@@ -44,6 +44,16 @@ loader.config({ monaco })
 // 启动时注册主题+tokenizer，全局只跑一次
 getMonaco()
 
+// monaco 全局主题随 IDE 同步：colorize 的 token 颜色解析走全局 theme service，
+// options.theme 参数无法完全覆盖；不同步会导致主题切换后首个代码段颜色错。
+function MonacoThemeSync(): null {
+  const { theme } = useTheme()
+  React.useEffect(() => {
+    getMonaco().then(monaco => monaco.editor.setTheme(theme.monacoTheme))
+  }, [theme.monacoTheme])
+  return null
+}
+
 async function bootstrap() {
   try {
     const { css } = await window.api.snippets.load()
@@ -68,6 +78,7 @@ async function bootstrap() {
       <ErrorBoundary>
         <ThemeProvider>
           <I18nProvider>
+            <MonacoThemeSync />
             <App />
           </I18nProvider>
         </ThemeProvider>

@@ -1,15 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { useStableCodeOverrides } from '../MarkdownCodeBlock'
 import { useOpenPath } from './useOpenPath'
 import { FILE_PATH_REGEX, parseFilePath } from '../../utils/filePathUtils'
 import { cleanMessageContent } from '../../utils/aiConversationFormatter'
-
-// singleTilde:false 防 "4~7 xx 7~8" 这类范围写法被误配成删除线；del 直通彻底不渲染删除线
-const GFM_PLUGINS: [[typeof remarkGfm, { singleTilde: boolean }]] = [[remarkGfm, { singleTilde: false }]]
-const DelPassthrough = ({ children }: { children?: ReactNode }) => <>{children}</>
+import { GFM_PLUGINS, DelPassthrough } from './markdownShared'
 
 function findFilePathAtPoint(x: number, y: number, cwd: string): { raw: string; fullPath: string; lineNumber?: number } | null {
   const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null }

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { IDETheme } from './types'
 import { THEMES, DEFAULT_THEME_ID } from './definitions'
-import { getMonaco } from '@renderer/utils/monacoSingleton'
 import { syncTitleBarOverlay } from '@renderer/utils/titlebarSync'
 
 interface ThemeContextValue {
@@ -57,17 +56,6 @@ export function ThemeProvider({ children, variant = 'app' }: { children: React.R
     // 宠物窗口无原生标题栏，也不应改动主窗口的 overlay
     if (variant === 'app') syncTitleBarOverlay()
   }, [currentThemeId, currentTheme, variant])
-
-  // monaco 全局主题随 IDE 同步：colorize 的 token 颜色解析走全局 theme service，
-  // options.theme 参数无法完全覆盖；不同步会导致主题切换后首个代码段颜色错。
-  useEffect(() => {
-    if (variant === 'pet') return
-    let cancelled = false
-    getMonaco().then(monaco => {
-      if (!cancelled) monaco.editor.setTheme(currentTheme.monacoTheme)
-    })
-    return () => { cancelled = true }
-  }, [currentTheme.monacoTheme, variant])
 
   const setTheme = useCallback((id: string) => {
     setCurrentThemeId(id)
