@@ -83,7 +83,7 @@ html, body, #root {
 body .bg-ide-bg {
   background-color: rgb(var(--ide-bg) / var(--app-bg-alpha)) !important;
 }
-body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group) {
+body .bg-ide-sidebar:not(.titlebar-drag):not(.session-group):not(.session-panel__quick-action) {
   background-color: rgb(var(--ide-sidebar) / var(--app-bg-alpha)) !important;
 }
 body .bg-ide-panel {
@@ -188,6 +188,17 @@ input, select, textarea {
 }
 .session-panel {
   border-right: 1px solid rgb(var(--sk-ivory) / 0.10) !important;
+}
+
+/* 快捷按钮：不要默认底色，只留 hover / 激活反馈 */
+body .session-panel__quick-action {
+  background-color: transparent !important;
+}
+body .session-panel__quick-action:hover {
+  background-color: rgb(var(--ide-hover) / 0.55) !important;
+}
+body .session-panel__quick-action.bg-ide-accent\/15 {
+  background-color: rgb(var(--ide-accent) / 0.15) !important;
 }
 
 .session-group .session-item {
