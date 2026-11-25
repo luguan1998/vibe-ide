@@ -285,6 +285,26 @@ const api = {
       else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_REPLY)
     },
     reportHits: (rects: import('../shared/types').PetWinRect[]) => ipcRenderer.send(IPC_CHANNELS.PETWIN_HITS, rects),
+    onSpritePos: (callback: (p: import('../shared/types').PetWinPoint) => void) => {
+      const handler = (_e: any, p: any) => callback(p)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_SPRITE_POS, handler)
+      return handler
+    },
+    removeSpritePosListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_SPRITE_POS, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_SPRITE_POS)
+    },
+    drag: (action: 'start' | 'end', rect?: import('../shared/types').PetWinPoint) =>
+      ipcRenderer.invoke(IPC_CHANNELS.PETWIN_DRAG, { action, rect }) as Promise<import('../shared/types').PetWinDragResult | null>,
+    onDragState: (callback: (state: { moved: boolean; dir: 'left' | 'right' | null }) => void) => {
+      const handler = (_e: any, state: any) => callback(state)
+      ipcRenderer.on(IPC_CHANNELS.PETWIN_DRAG_STATE, handler)
+      return handler
+    },
+    removeDragStateListener: (handler?: any) => {
+      if (handler) ipcRenderer.removeListener(IPC_CHANNELS.PETWIN_DRAG_STATE, handler)
+      else ipcRenderer.removeAllListeners(IPC_CHANNELS.PETWIN_DRAG_STATE)
+    },
     onResetPos: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on(IPC_CHANNELS.PETWIN_RESET_POS, handler)

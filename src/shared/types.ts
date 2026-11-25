@@ -235,6 +235,9 @@ export const IPC_CHANNELS = {
   PETWIN_INTENT: 'petWin:intent',         // pet → main → app: 用户意图
   PETWIN_REPLY: 'petWin:reply',           // app → main → pet: 意图结果
   PETWIN_HITS: 'petWin:hits',             // pet → main: 可点击矩形（窗口内 CSS px）
+  PETWIN_SPRITE_POS: 'petWin:spritePos',   // main → pet: 精灵在窗口内的坐标（拖动/跨屏由主进程算）
+  PETWIN_DRAG: 'petWin:drag',             // pet → main: 拖拽开始（带精灵矩形）/结束（invoke，返回是否移动过）
+  PETWIN_DRAG_STATE: 'petWin:dragState',  // main → pet: 拖拽中的方向/是否已移动
   PETWIN_READY: 'petWin:ready',           // pet → main: 请求缓存状态
   PETWIN_FOCUS: 'petWin:focus',           // main → app: 宠物窗口焦点变化
   PETWIN_RESET_POS: 'petWin:resetPos'     // app → main: 重置宠物窗口位置
@@ -411,6 +414,16 @@ export interface PetWinIntent {
   type: PetWinIntentType
   text?: string
   sessionId?: string | null
+}
+
+export interface PetWinPoint {
+  x: number
+  y: number
+}
+
+export interface PetWinDragResult {
+  moved: boolean
+  dir: 'left' | 'right' | null
 }
 
 // Terminal types

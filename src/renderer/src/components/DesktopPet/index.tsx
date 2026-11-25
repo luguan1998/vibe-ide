@@ -9,7 +9,7 @@ import { Edit, Send, MessageSquareQuote, Plug, X, BookOpenText, Pin, Sparkles, L
 import { KeypadConfigModal } from '../KeypadConfigModal'
 import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
-import { getPetScale, getPetVisible, getPetPos, setPetPos, resetPetPos, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetAutoSuggest, setPetAutoSuggest } from './petSettings'
+import { getPetScale, getPetVisible, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetAutoSuggest, setPetAutoSuggest } from './petSettings'
 import { AiReplyBubble } from './AiReplyBubble'
 import { addInterjectRecord, loadInterjectRecords, removeInterjectRecord, setInterjectReply, type InterjectRecord } from './interjectHistory'
 
@@ -49,7 +49,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   bridge: PetWindowBridge
 }) {
   const [manifest, setManifest] = useState<PetManifest | null>(null)
-  const [pos, setPos] = useState(() => getPetPos())
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [scale, setScale] = useState(() => getPetScale())
   const [visible, setVisible] = useState(() => getPetVisible())
   const [popupOpen, setPopupOpen] = useState(false)
@@ -99,7 +99,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contextInputRef = useRef<HTMLTextAreaElement>(null)
   const inlineInputRef = useRef<HTMLTextAreaElement>(null)
-  const dragRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number; lastX: number; moved: boolean } | null>(null)
+  const dragRef = useRef<{ pointerId: number; rect: DOMRect } | null>(null)
   const singleClickTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const transientTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const lastShownReplyIdRef = useRef<string | null>(null)
@@ -286,46 +286,53 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     }, 300)
   }, [triggerTransient, popupOpen, activeKind])
 
-  // 窗口铺满工作区，精灵在窗口内拖动；未移动则视为点击开气泡
+  // 拖拽由主进程按屏幕坐标驱动（支持跨显示器）；渲染层只区分点击/拖动
+  const finishDrag = useCallback(() => {
+    const d = dragRef.current
+    if (!d) return
+    dragRef.current = null
+    void window.api.petWin.drag('end').then((res) => {
+      setDragDir(null)
+      if (res?.moved) return
+      handlePetClick(d.rect)
+    })
+  }, [handlePetClick])
+
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
     const el = e.currentTarget as HTMLElement
     const rect = el.getBoundingClientRect()
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top, lastX: e.clientX, moved: false }
+    dragRef.current = { pointerId: e.pointerId, rect }
     try { el.setPointerCapture(e.pointerId) } catch {}
+    void window.api.petWin.drag('start', { x: rect.x, y: rect.y })
   }, [])
 
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current
-    if (!d) return
-    const dx = e.clientX - d.startX
-    const dy = e.clientY - d.startY
-    if (!d.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-      d.moved = true
-      setPopupOpen(false)
-      setAiBubbleOpen(false)
+  // 窗口跨屏搬移/改变大小时可能丢 pointer capture，松手事件落到页面而非精灵上
+  useEffect(() => {
+    const handler = () => finishDrag()
+    window.addEventListener('pointerup', handler)
+    window.addEventListener('pointercancel', handler)
+    return () => {
+      window.removeEventListener('pointerup', handler)
+      window.removeEventListener('pointercancel', handler)
     }
-    if (!d.moved) return
-    if (e.clientX !== d.lastX) setDragDir(e.clientX > d.lastX ? 'right' : 'left')
-    d.lastX = e.clientX
-    const left = Math.max(0, Math.min(window.innerWidth - 8, d.origLeft + dx))
-    const top = Math.max(0, Math.min(window.innerHeight - 8, d.origTop + dy))
-    setPos({ left, top })
+  }, [finishDrag])
+
+  useEffect(() => {
+    const h = window.api.petWin.onSpritePos((p) => setPos({ left: p.x, top: p.y }))
+    return () => window.api.petWin.removeSpritePosListener(h)
   }, [])
 
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current
-    dragRef.current = null
-    setDragDir(null)
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId) } catch {}
-    if (!d) return
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    if (d.moved) {
-      setPetPos({ left: rect.left, top: rect.top })
-      return
-    }
-    handlePetClick(rect)
-  }, [handlePetClick])
+  useEffect(() => {
+    const h = window.api.petWin.onDragState((state) => {
+      setDragDir(state.dir)
+      if (state.moved) {
+        setPopupOpen(false)
+        setAiBubbleOpen(false)
+      }
+    })
+    return () => window.api.petWin.removeDragStateListener(h)
+  }, [])
 
   // 可点击矩形上报给主进程（透明窗口靠它决定是否穿透）。next frame 上报，
   // 等 textarea 自增高、气泡内容渲染完，避免命中区比实际气泡小
@@ -344,10 +351,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   })
 
   useEffect(() => {
-    const h = window.api.petWin.onResetPos(() => {
-      resetPetPos()
-      setPos(null)
-    })
+    const h = window.api.petWin.onResetPos(() => setPos(null))
     return () => window.api.petWin.removeResetPosListener(h)
   }, [])
 
@@ -617,8 +621,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         <div
           className="desktop-pet__hitarea"
           onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
+          onPointerUp={finishDrag}
           onContextMenu={onContextMenu}
         >
           <PetSprite manifest={manifest} stateName={stateName} scale={scale} frameRate={frameRate} frames={frames} />

@@ -3,7 +3,6 @@ import type { PetWinPrefs } from '@shared/types'
 
 const SCALE_KEY = 'vibe-ide-pet-scale'
 const VISIBLE_KEY = 'vibe-ide-pet-visible'
-const POS_KEY = 'vibe-ide-pet-pos'
 const EVENT = 'vibe-ide-pet-prefs-changed'
 
 const PET_SCALE_DEFAULT = 0.5
@@ -52,27 +51,6 @@ export function setPetFrameRate(v: number) {
 export function getPetVisible(): boolean { return readBool(VISIBLE_KEY, true) }
 export function setPetVisible(v: boolean) {
   try { localStorage.setItem(VISIBLE_KEY, String(v)) } catch {}
-  emit()
-}
-
-export interface PetPos { left: number; top: number }
-
-export function getPetPos(): PetPos | null {
-  try {
-    const raw = localStorage.getItem(POS_KEY)
-    if (!raw) return null
-    const p = JSON.parse(raw)
-    if (typeof p.left === 'number' && typeof p.top === 'number') return p
-  } catch {}
-  return null
-}
-
-export function setPetPos(p: PetPos) {
-  try { localStorage.setItem(POS_KEY, JSON.stringify(p)) } catch {}
-}
-
-export function resetPetPos() {
-  try { localStorage.removeItem(POS_KEY) } catch {}
   emit()
 }
 
