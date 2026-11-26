@@ -17,7 +17,7 @@ html.pet-window #root::after {
   background: none !important;
 }
 html.pet-window .desktop-pet__bubbles {
-  max-height: 280px;
+  max-height: 296px;
   overflow-y: auto;
 }
 
@@ -125,20 +125,23 @@ html.pet-window .desktop-pet__bubbles {
 .desktop-pet__hitarea:active {
   cursor: grabbing;
 }
+/* 8px 内边距给 box-shadow 留绘制空间：overflow 容器按矩形裁剪，贴边的圆角阴影会被裁成直角（亮色可见）。
+   宽度 +16、align 归 0、above/below 反向补偿，内容位置与原来一致 */
 .desktop-pet__bubbles {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  width: 220px;
+  width: 236px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   z-index: 35;
 }
-.desktop-pet__bubbles--above { bottom: calc(100% - 4px); }
-.desktop-pet__bubbles--below { top: calc(100% + 8px); }
-.desktop-pet__bubbles--align-left { left: 8px; transform: none; }
-.desktop-pet__bubbles--align-right { left: auto; right: 8px; transform: none; }
+.desktop-pet__bubbles--above { bottom: calc(100% - 12px); }
+.desktop-pet__bubbles--below { top: 100%; }
+.desktop-pet__bubbles--align-left { left: 0; transform: none; }
+.desktop-pet__bubbles--align-right { left: auto; right: 0; transform: none; }
 .desktop-pet__bubble-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
