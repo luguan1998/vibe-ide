@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'YouSheBiaoTiYuan';
+  src: url('../assets/youshe-biaotiyuan.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* 须与 definitions.ts 的 vscodeDark (DEFAULT_THEME_ID) 保持一致 — 消首帧闪烁 */
+  --ide-bg: 30 30 30;
+  --ide-sidebar: 37 37 38;
+  --ide-panel: 45 45 45;
+  --ide-border: 60 60 60;
+  --ide-text: 212 212 212;
+  --ide-text-muted: 133 133 133;
+  --ide-accent: 0 122 204;
+  --ide-accent-hover: 26 138 212;
+  --ide-success: 78 201 176;
+  --ide-danger: 244 71 71;
+  --ide-warning: 204 167 0;
+  --ide-hover: 42 45 46;
+  --ide-active: 55 55 61;
+  --scrollbar-thumb: 66 66 66;
+  --scrollbar-thumb-hover: 85 85 85;
+  --selection-bg: 0 122 204;
+  --selection-opacity: 0.3;
+  --focus-outline: 0 122 204;
+  --monaco-margin-bg: 30 30 30;
+  --ide-app-name-font: 'YouSheBiaoTiYuan', 'Segoe UI Variable Display', 'Segoe UI', Calibri, system-ui, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--ide-font-family), 'Consolas', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', monospace, sans-serif;
+  background-color: rgb(var(--ide-bg));
+  color: rgb(var(--ide-text));
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+/* track transparent: gutter 透出容器自身底色，避免双色主题（如 Monkey King 黄底绿栏）在无滚动条时残留竖线 */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--scrollbar-thumb));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--scrollbar-thumb-hover));
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* #root 内容 / 挂 body 的 vibe portal（如外观菜单）用更窄的滚动条。
+   track/thumb/corner 的无前缀规则即 *::-webkit-scrollbar-*，已覆盖全部元素，无需带前缀再钉一遍 */
+#root ::-webkit-scrollbar,
+.vibe-ui ::-webkit-scrollbar {
+  width: 9px;
+  height: 14px;
+}
+
+/* Selection highlight */
+::selection {
+  background: rgb(var(--selection-bg) / var(--selection-opacity));
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid rgb(var(--focus-outline));
+  outline-offset: -2px;
+}

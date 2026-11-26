@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme } from './themes'
 import { I18nProvider } from './i18n'
 import ErrorBoundary from './components/ErrorBoundary'
 import { getMonaco } from './utils/monacoSingleton'
+import './styles/base.css'
 import './styles/globals.css'
 
 // Workers for Monaco Editor (electron-vite handles ?worker imports)
