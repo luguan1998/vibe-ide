@@ -192,25 +192,23 @@ Outputs `dist/Vibe IDE Setup x64.exe` (NSIS) + a 7z. Install it and open a sessi
 you must compile `node_modules/clipboard-files/build/Release/binding.node`
 locally, or the main process crashes on startup.
 
-Machine-specific gotcha: with VS 2026 (v18), `node-gyp` must be 12.1.0 or newer
-to recognize the VS version. BuildTools' VCTargets also lack
-`Microsoft.Cpp.Default.props`, so a plain `node-gyp rebuild` fails with
-`MSB4019`. Fix = build with the **VS Community 2026 MSBuild**:
+Machine-specific gotcha: with VS 2026 (v18) installed twice (BuildTools +
+Community), `node-gyp` must be 12.1.0 or newer to recognize the version at all,
+and its auto-detection picks BuildTools whose VCTargets lack
+`Microsoft.Cpp.Default.props` → `MSB4019`. Point `VCINSTALLDIR` at Community
+to skip detection entirely:
 
 ```bash
 cd node_modules/clipboard-files
-npx -y node-gyp@13.1.0 configure          # generates build/binding.vcxproj
-VCTargetsPath="C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Microsoft/VC/v180/" \
-  "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" \
-  build/binding.sln -p:Configuration=Release -p:Platform=x64 -m
+VCINSTALLDIR="C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\" \
+  npx node-gyp rebuild
 node -e "require('.')"                    # verify it loads (prints readFiles/writeFiles/path)
 ```
 
 Notes:
-- `node-gyp@13.1.0` (repo devDependency; 12.1.0 is the first release to know
-  VS 2026).
-- MSBuild must be the Community edition path (BuildTools' VCTargets are
-  incomplete); keep the trailing `\` on `VCTargetsPath`.
+- `node-gyp@13.1.0` is the repo devDependency (12.1.0 is the first release to
+  know VS 2026); npm lifecycle scripts pick it up from `node_modules/.bin`.
+- `VCINSTALLDIR` must end with `VC\` (node-gyp appends `..` to find the root).
 - The output lands in `build/Release/binding.node` (139KB). Another `npm ci`
   wipes it — rerun the steps above.
 
