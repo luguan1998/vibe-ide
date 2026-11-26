@@ -17,7 +17,8 @@
     "prestart": "node scripts/prepare-clangd.mjs",
     "start": "electron-vite preview",
     "build:win": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win --x64",
-    "build:win:7z": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win 7z --x64"
+    "build:win:7z": "npm run build && cross-env ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ npx electron-builder --win 7z --x64",
+    "release": "node scripts/release.mjs"
   },
   "build": {
     "appId": "com.vibe-ide",
@@ -193,6 +194,8 @@
     "electron": true,
     "esbuild@0.21.5": true,
     "node-pty": true,
-    "tesseract.js@6.0.1": true
+    "tesseract.js@6.0.1": true,
+    "clipboard-files": true,
+    "ssh2": true
   }
 }

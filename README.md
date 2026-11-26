@@ -223,6 +223,19 @@ npm run build
 npm run build:win
 ```
 
+### Release
+
+```bash
+npm run release                # patch by default
+npm run release -- minor       # major / minor / patch
+npm run release -- current     # republish the current version without bumping
+npm run release -- --dry-run   # generate and print the notes only
+```
+
+One command: bump the version → generate Chinese release notes with the local `claude` CLI in the style of the previous release → create an annotated tag carrying those notes → push.
+
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs `npm ci`, tests, builds on a Windows runner, uploads `Vibe IDE-x64.7z` + `Vibe IDE-x64.exe`, and publishes the release using the tag message as the body. To re-run or backfill an already pushed tag, use `workflow_dispatch` with the tag name (it goes through `gh release upload --clobber`).
+
 ### Bundled clangd (affects builds)
 
 C/C++ navigation uses a bundled clangd. The repo only stores the archive

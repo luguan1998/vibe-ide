@@ -214,6 +214,19 @@ npm run build
 npm run build:win
 ```
 
+### 发布
+
+```bash
+npm run release                # 默认 patch
+npm run release -- minor       # major / minor / patch
+npm run release -- current     # 不 bump，用当前版本号补发
+npm run release -- --dry-run   # 只生成日志打印，不提交不推送
+```
+
+一条命令完成：bump 版本 → 用本机 `claude` 按上一版风格生成中文更新日志 → 建 annotated tag（正文即日志）→ push。
+
+CI（`.github/workflows/release.yml`）在 `v*` tag 推送后于 windows runner 上 `npm ci` + 测试 + 构建，产出 `Vibe IDE-x64.7z` 和 `Vibe IDE-x64.exe` 两个资产并自动发布 release，正文取 tag message。要补发/重跑已推送的 tag，用 Actions 页面的 `workflow_dispatch` 填 tag 名，会走 `gh release upload --clobber`。
+
 ### 内置 clangd（影响编译）
 
 C/C++ 跳转使用内置 clangd。仓库只存压缩包 `vendor/clangd-23.1.2.7z`（12MB），解压目录 `vendor/clangd/` 不进版本控制。

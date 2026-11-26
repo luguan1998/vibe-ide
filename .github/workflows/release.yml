@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'tag to publish'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          printf 'registry=https://registry.npmjs.org/\nreplace-registry-host=always\n' > .npmrc
+          npm ci
+
+      - name: Verify native modules
+        run: node -e "require('clipboard-files');require('node-pty')"
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Package
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          NOTES=""
+          if [ "$(git cat-file -t "$TAG")" = "tag" ]; then
+            NOTES="$(git tag -l --format='%(contents)' "$TAG")"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "dist/Vibe IDE-x64.7z" "dist/Vibe IDE-x64.exe" --clobber
+          elif [ -n "$NOTES" ]; then
+            gh release create "$TAG" "dist/Vibe IDE-x64.7z" "dist/Vibe IDE-x64.exe" --title "${TAG#v}" --notes "$NOTES"
+          else
+            gh release create "$TAG" "dist/Vibe IDE-x64.7z" "dist/Vibe IDE-x64.exe" --title "${TAG#v}" --generate-notes
+          fi

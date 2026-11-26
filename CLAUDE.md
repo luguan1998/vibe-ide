@@ -34,6 +34,7 @@ npm run dev           # electron-vite dev，热更新
 npm run build         # electron-vite build → ./out/
 npm run typecheck     # tsc -b（本机大工程易 OOM；小验证用 esbuild 单文件转译）
 npm run build:win:7z  # build + electron-builder 打包 win 7z（镜像走 npmmirror）
+npm run release      # 发版：claude 生成更新日志 → annotated tag → push，CI 构建并发布
 npm test              # node --test test/**/*.test.mjs
 npm run test:perf     # 性能测试：自动 build + 启动 + 快速文件切换 + 采集 CPU/内存 + 关闭
 npm version patch     # 0.11.4 → 0.11.5  修bug
