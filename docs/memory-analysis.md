@@ -566,3 +566,90 @@ claude CLI 子进程另有 3 个（315~463MB，属 CLI 自身，非本案）。
 - 渲染层"已加载会话不卸载"（每个常驻 AiTab 一份 DOM+memo；属渲染进程，非本案崩因）
 - `buildSessionGraph` 每次刷新重读**未变过**的分支文件（只在开网状图时）
 - 流式 token 一条一 IPC（改批处理会影响打字机手感）
+
+---
+
+## 14. 常驻长会话的代价（2026-11-27，0.16.1 打包版实测）
+
+> 起因：任务管理器总占用 ~750MB，问"能不能优化"。
+> 口径：打包版 dist + `Get-CimInstance PrivatePageCount`（private bytes），
+> 与 §11 同口径可直接对比。使用态与干净基线各量一次，不混 dev。
+
+### 14.1 两组读数
+
+> 干净基线为启动后 60s 稳态（§11 用 100s+；渲染进程 60s 已稳定，GPU 仍处双模态区间）。
+
+| 进程 | 干净基线（副本 profile，会话列表恢复但 `loaded:false`） | 使用态（1 个终端会话 + 当前长 AI 对话流式中） |
+|---|---|---|
+| 主渲染 | **113MB** priv / 190MB WS | **459MB** priv / 493MB WS |
+| GPU | 177MB | 309MB |
+| 主进程 | 182MB（RSS 202） | 191MB |
+| 桌宠窗口（独立 renderer） | 70MB priv / 158MB WS | 85MB priv / 144MB WS |
+| utility（network+audio） | 31MB | 25MB |
+| **合计 private** | **~565MB** | **~1.07GB** |
+
+主渲染干净基线 CDP 实测：JS 堆 **36MB**、DOM 900 节点、CSS 规则 2448。
+→ 所以干净启动的 113MB 里，JS 堆只占 1/3，其余是 Monaco 预载/字体/Blink 池等固定成本。
+
+### 14.2 增量怎么读
+
+- **使用态 − 干净基线 ≈ +346MB（主渲染）**。这是"常驻长会话"的真实总代价，但**不可再拆成单一归因**：
+  已加载对话（§6d：6.4MB 对话 ≈ 峰 +58MB / 常驻 +39MB）、首次 Monaco（+85~155MB，一次性）、
+  引擎池时间累积、以及**测时 AI 正在流式输出**（90 秒采样期内主渲染 423→459MB，持续 +36MB/90s，
+  CPU ≈22% 单核、GPU ≈25%——这部分是活跃渲染，不是常驻）。
+- 纯常驻部分以 §6d 的受控 A/B 为准；本节的作用是给出**当前版本的端到端水位**，
+  避免再拿 §11 的 0.12.1 数字（153.8MB）对比后误判"现在变胖了"——
+  0.16.1 的干净基线实际是 **113MB，比 0.12.1 低 40MB**（dsh 预热移除 §12 等）。
+- 测时终端里有 `claude.exe`（PID 实际吃到 477MB），属应用外部子进程，**不计入**上表。
+
+### 14.3 主进程构成（本次首次拆开）
+
+主进程 inspector（`--inspect=9341`，`process.memoryUsage()`）：
+
+| 项 | 实测 |
+|---|---|
+| RSS | 202MB |
+| heapUsed / heapTotal | **17MB / 28MB** |
+| external | **51MB** |
+| arrayBuffers | 0 |
+
+→ **主进程 182MB private 里应用数据只有 ~68MB，其余 ~114MB 是 Electron/Node 底座**（与 §8.1 裸 Electron 主进程 139MB 一致）。
+主进程不是优化点；external 51MB 的后续方向是 codegraph native 结构，量级也不值得动。
+
+### 14.4 桌宠窗口是单项最大可省
+
+桌宠是**独立 renderer 进程**（`renderer-pet` 入口），常驻 priv 70~85MB / WS 144~158MB。
+其中裸 Electron 渲染窗口底盘约 107MB WS（§8.1），应用部分主要是精灵图解码（11MB/套）+ CSS。
+不用桌宠时关闭入口（AppearancePanel → Show Pet）直接回收整个进程。
+
+### 14.5 顺带的收益：宠物 CSS 不再整份加载
+
+宠物入口原先 `import './styles/globals.css'`，全应用样式（Monaco/xterm/Git/Diff）都进了宠物窗口；
+Tailwind `content` 也扫整个 `src/renderer/src`，utilities 同样是全量。已拆为：
+
+- `styles/base.css`（@tailwind + 变量 + reset + 基础滚动条）—— 主窗口与宠物共用
+- `styles/globals.css`（仅应用专属样式）—— 主窗口
+- `styles/pet.css`（pet-window + md-preview + desktop-pet 段）—— 宠物
+- `tailwind.pet.config.js`（content 只扫宠物树）+ `vite.pet.config.ts` 的 `css.postcss`
+
+| 产物 | 拆前 | 拆后 |
+|---|---|---|
+| 宠物 CSS | 89.7KB | **25.5KB（-72%）** |
+| 宠物窗口 CSS 规则 | 1401 | **434（-69%）** |
+| 主窗口 CSS | 122.6KB | 105.7KB |
+
+内存收益按 §12 的 0.6KB/规则推算仅 **~0.5MB**，属工程整洁收益（产物/启动解析），不是内存优化。
+
+### 14.6 本次结论排序
+
+| # | 项 | 收益 | 建议 |
+|---|---|---|---|
+| 1 | 不用桌宠就关掉 | 70~85MB private | 用户侧开关，无需改码 |
+| 2 | 长对话/多会话常驻无卸载（§13.4 已列未做） | 单会话数十 MB 起，多会话非线性 | 需设计落盘/卸载，成本高 |
+| 3 | GPU 进程 | **不要动**（平台底盘 + 双模态，§8.2） | — |
+| 4 | 主进程 | ~17MB JS 堆，非优化点 | — |
+| 5 | 宠物 CSS 拆分 | ~0.5MB | 已完成（工程价值为主） |
+
+**方法可复现**：`robocopy` 复制 user-data-dir（排除 `Cache`/`Code Cache`）→ 独立 `--user-data-dir` 启动并行实例
+→ PowerShell `PrivatePageCount` 采样 → CDP `Performance.getMetrics` 取 JS 堆/DOM/CSS 规则。
+注意并行实例会再占一份内存，测完即关。
