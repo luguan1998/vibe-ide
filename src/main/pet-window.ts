@@ -13,6 +13,7 @@ const DRAG_POLL_MS = 16
 const DRAG_THRESHOLD = 4
 const EDGE_KEEP = 8
 const SPRITE_INSET = 8
+// 窗口 = 精灵 + 余量：水平两侧各 EXTRA_W/2 给左右弹气泡，垂直 EXTRA_H 全在精灵上方
 const EXTRA_W = 360
 const EXTRA_H = 320
 const DEFAULT_SPRITE_W = 96
@@ -39,7 +40,6 @@ interface DragSession {
   lastX: number
   moved: boolean
   dir: 'left' | 'right' | null
-  anchor: PetWinPoint
   timer: ReturnType<typeof setInterval> | null
 }
 
@@ -84,22 +84,29 @@ function setIgnore(ignore: boolean) {
   petWindow.setIgnoreMouseEvents(ignore)
 }
 
-function applyLayout(anchor?: PetWinPoint) {
+// 精灵在窗口内的固定落点：水平居中（左右余量对称，气泡贴边判定才有意义），底部对齐。
+// 每次从屏幕坐标重算，不复用上一帧结果 —— 贴边被 clamp 后偏移不会累积。
+function spriteLocalFor(w: number, h: number) {
+  const s = spriteSize()
+  return { x: Math.round((w - s.w) / 2), y: h - s.h - SPRITE_INSET }
+}
+
+function applyLayout() {
   if (!petWindow || petWindow.isDestroyed()) return
   const disp = spriteScreen
     ? screen.getDisplayNearestPoint({ x: Math.round(spriteScreen.x), y: Math.round(spriteScreen.y) })
     : defaultDisplay()
   const wa = disp.workArea
   const { w, h } = windowSize(wa)
+  const s = spriteSize()
   if (!spriteScreen) {
-    const s = spriteSize()
     spriteScreen = { x: wa.x + SPRITE_INSET, y: wa.y + wa.height - s.h - SPRITE_INSET }
-    applyLayout({ x: SPRITE_INSET, y: h - s.h - SPRITE_INSET })
+    applyLayout()
     return
   }
-  const a = anchor ?? spriteLocal
-  const ox = clamp(spriteScreen.x - a.x, wa.x, wa.x + wa.width - w)
-  const oy = clamp(spriteScreen.y - a.y, wa.y, wa.y + wa.height - h)
+  const a = spriteLocalFor(w, h)
+  const ox = Math.round(clamp(spriteScreen.x - a.x, wa.x, wa.x + wa.width - w))
+  const oy = Math.round(clamp(spriteScreen.y - a.y, wa.y, wa.y + wa.height - h))
   const next = { x: spriteScreen.x - ox, y: spriteScreen.y - oy }
   const b = petWindow.getBounds()
   if (b.width !== w || b.height !== h) petWindow.setBounds({ x: ox, y: oy, width: w, height: h })
@@ -115,10 +122,7 @@ function resetSprite() {
   stopDrag()
   spriteScreen = null
   if (!petWindow || petWindow.isDestroyed()) return
-  const wa = defaultDisplay().workArea
-  const { w, h } = windowSize(wa)
-  petWindow.setBounds({ x: wa.x, y: wa.y + wa.height - h, width: w, height: h })
-  currentDisplayId = defaultDisplay().id
+  applyLayout()
   sendToPet(IPC_CHANNELS.PETWIN_RESET_POS)
 }
 
@@ -198,7 +202,6 @@ function startDrag(rect: PetWinPoint) {
     lastX: cursor.x,
     moved: false,
     dir: null,
-    anchor: { x: rect.x, y: rect.y },
     timer: null
   }
   drag = session
@@ -220,7 +223,7 @@ function startDrag(rect: PetWinPoint) {
       x: clamp(target.x, wa.x, wa.x + wa.width - EDGE_KEEP),
       y: clamp(target.y, wa.y, wa.y + wa.height - EDGE_KEEP)
     }
-    applyLayout(drag.anchor)
+    applyLayout()
     const dir = cur.x > drag.lastX ? 'right' : cur.x < drag.lastX ? 'left' : drag.dir
     if (dir !== drag.dir) {
       drag.dir = dir
@@ -277,7 +280,7 @@ function createPetWindow(): BrowserWindow {
 
   currentDisplayId = display.id
   spriteScreen = null
-  spriteLocal = { x: SPRITE_INSET, y: h - spriteSize().h - SPRITE_INSET }
+  spriteLocal = spriteLocalFor(w, h)
 
   win.setMenu(null)
   win.setIgnoreMouseEvents(true)
@@ -369,10 +372,8 @@ export function registerPetWindowHandlers(getMainWindow: () => BrowserWindow | n
       if (!spriteScreen && petWindow && !petWindow.isDestroyed()) {
         const b = petWindow.getBounds()
         spriteScreen = { x: b.x + sp.x, y: b.y + sp.y }
-        applyLayout({ x: sp.x, y: sp.y })
-      } else {
-        applyLayout()
       }
+      applyLayout()
     }
     tick()
   })

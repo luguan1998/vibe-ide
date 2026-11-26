@@ -13,8 +13,9 @@ import { getPetScale, getPetVisible, onPetPrefsChanged, getPetFrameRate, getPetL
 import { AiReplyBubble } from './AiReplyBubble'
 import { addInterjectRecord, loadInterjectRecords, removeInterjectRecord, setInterjectReply, type InterjectRecord } from './interjectHistory'
 
-const CONTEXT_SIDE_SPACE = 228
 const CONTEXT_SIDE_MARGIN = 90
+const POPUP_W = 220
+const AI_REPLY_W = 320
 
 const SUGGEST_PROMPT = '只根据以上对话内容，预测用户接下来最可能输入的 3 条简短指令。要求：使用对话的主要语言；每条不超过 30 个汉字（或 60 个字符），动词开头，可直接作为下一条消息发送；只输出 3 行纯文本，每行一条，不要编号、不要引号、不要任何解释。'
 
@@ -56,9 +57,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const [popupAbove, setPopupAbove] = useState(true)
   const [contextDir, setContextDir] = useState<'above' | 'below' | 'left' | 'right'>('above')
   const [contextVAlign, setContextVAlign] = useState<'center' | 'top' | 'bottom'>('center')
-  const [aiBubbleAlign, setAiBubbleAlign] = useState<'center' | 'left' | 'right'>('center')
-  const [bubblesAlign, setBubblesAlign] = useState<'default' | 'left' | 'right'>('default')
-  const [contextAlign, setContextAlign] = useState<'default' | 'left' | 'right'>('default')
+  const [bubbleAlign, setBubbleAlign] = useState<'default' | 'left' | 'right'>('default')
   const [contextOpen, setContextOpen] = useState(false)
   const [contextBtw, setContextBtw] = useState(false)
   const [contextPinned, setContextPinned] = useState(false)
@@ -258,10 +257,22 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
   const placeContextSide = useCallback((rect: DOMRect) => {
     const roomRight = window.innerWidth - rect.right
     const roomLeft = rect.left
-    setContextDir(roomRight >= CONTEXT_SIDE_SPACE || roomRight >= roomLeft ? 'right' : 'left')
-    setContextAlign('default')
+    setContextDir(roomRight >= roomLeft ? 'right' : 'left')
     const cy = rect.top + rect.height / 2
     setContextVAlign(cy > window.innerHeight - CONTEXT_SIDE_MARGIN ? 'bottom' : cy < CONTEXT_SIDE_MARGIN ? 'top' : 'center')
+  }, [])
+
+  // 气泡贴边判定：容器自身 clamp 到窗口内两侧时贴边，居中时回 default
+  const alignFor = useCallback((cardW: number) => {
+    const el = wrapperRef.current
+    if (!el) return 'default' as const
+    const rect = el.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const left = cx - cardW / 2
+    const right = cx + cardW / 2
+    if (left < 8) return 'left' as const
+    if (right > window.innerWidth - 8) return 'right' as const
+    return 'default' as const
   }, [])
 
   const handlePetClick = useCallback((rect: DOMRect) => {
@@ -375,6 +386,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     } else {
       setContextDir(rect.top > window.innerHeight - rect.bottom ? 'above' : 'below')
     }
+    setBubbleAlign('default')
     fillDraftFromCenter()
     setContextOpen(true)
   }, [aiBubbleOpen, latestReply, contextOpen, contextBtw, fillDraftFromCenter])
@@ -387,45 +399,12 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     placeContextSide(el.getBoundingClientRect())
   }, [aiBubbleOpen, contextOpen, placeContextSide])
 
-  // 回复气泡靠屏幕边缘时贴边弹出，避免出屏（按 max-width 320 预估）
+  // 三个气泡共用一套贴边判定（速发键/输入框 220，AI 回复 320）。左右弹时已按半区判过，不必再算
   useEffect(() => {
-    if (!aiBubbleOpen || !latestReply) return
-    const el = wrapperRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    if (centerX - 160 < 8) setAiBubbleAlign('left')
-    else if (centerX + 160 > window.innerWidth - 8) setAiBubbleAlign('right')
-    else setAiBubbleAlign('center')
-  }, [aiBubbleOpen, latestReply])
-
-  // 速发键气泡（宽 220）靠边时贴边，避免出屏
-  useEffect(() => {
-    if (!popupOpen) return
-    const el = wrapperRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    if (centerX - 110 < 8) setBubblesAlign('left')
-    else if (centerX + 110 > window.innerWidth - 8) setBubblesAlign('right')
-    else setBubblesAlign('default')
-  }, [popupOpen])
-
-  // 右键输入框上下弹时靠边贴边；左右弹时按半区判断已安全，无需再算（须重置 align，防残留变体覆盖定位）
-  useEffect(() => {
-    if (!contextOpen) return
-    if (contextDir === 'left' || contextDir === 'right') {
-      setContextAlign('default')
-      return
-    }
-    const el = wrapperRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    if (centerX - 110 < 8) setContextAlign('left')
-    else if (centerX + 110 > window.innerWidth - 8) setContextAlign('right')
-    else setContextAlign('default')
-  }, [contextOpen, contextDir])
+    if (popupOpen) setBubbleAlign(alignFor(POPUP_W))
+    else if (contextOpen) setBubbleAlign(contextDir === 'left' || contextDir === 'right' ? 'default' : alignFor(POPUP_W))
+    else if (aiBubbleOpen && latestReply) setBubbleAlign(alignFor(AI_REPLY_W))
+  }, [popupOpen, contextOpen, contextDir, aiBubbleOpen, latestReply, alignFor])
 
   const recordBtw = useCallback((text: string) => {
     if (activeKind !== 'gui' || !activeSessionId) return
@@ -632,7 +611,7 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         </div>
       )}
       {popupOpen && (
-        <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubblesAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubblesAlign}` : ''}`}>
+        <div className={`desktop-pet__bubbles${popupAbove ? ' desktop-pet__bubbles--above' : ' desktop-pet__bubbles--below'}${bubbleAlign !== 'default' ? ` desktop-pet__bubbles--align-${bubbleAlign}` : ''}`}>
           {bubbleTab === 'suggest' ? (
             <div key="suggest" className="flex flex-col gap-1.5 rounded-xl border border-ide-accent/40 bg-ide-sidebar shadow-md px-1.5 py-2">
               {suggestions.length > 0 ? (
@@ -770,10 +749,10 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
         </div>
       )}
       {visible && activeSessionId && aiBubbleOpen && latestReply && (
-        <AiReplyBubble text={latestReply.text} align={aiBubbleAlign} />
+        <AiReplyBubble text={latestReply.text} align={bubbleAlign === 'default' ? 'center' : bubbleAlign} />
       )}
       {contextOpen && !contextBtw && (
-        <div className={`desktop-pet__context desktop-pet__context--${contextDir}${contextAlign !== 'default' ? ` desktop-pet__context--align-${contextAlign}` : ''}${(contextDir === 'left' || contextDir === 'right') && contextVAlign !== 'center' ? ` desktop-pet__context--v-${contextVAlign}` : ''}`}>
+        <div className={`desktop-pet__context desktop-pet__context--${contextDir}${bubbleAlign !== 'default' ? ` desktop-pet__context--align-${bubbleAlign}` : ''}${(contextDir === 'left' || contextDir === 'right') && contextVAlign !== 'center' ? ` desktop-pet__context--v-${contextVAlign}` : ''}`}>
           {contextPinned && contextFocused && (
             <div className="desktop-pet__context-hint">按 Enter 发送</div>
           )}

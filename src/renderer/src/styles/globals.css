@@ -56,6 +56,18 @@ html.pet-window body,
 html.pet-window #root {
   background: transparent !important;
 }
+/* snippets 的整窗背景/暗角层（#root::before、body::before 等）在宠物窗要一并灭掉，
+   否则透明窗口里会整块画出主窗口的背景图 */
+html.pet-window::before,
+html.pet-window::after,
+html.pet-window body::before,
+html.pet-window body::after,
+html.pet-window #root::before,
+html.pet-window #root::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+}
 html.pet-window .desktop-pet__bubbles {
   max-height: 280px;
   overflow-y: auto;
@@ -862,7 +874,8 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 }
 .desktop-pet__bubbles {
   position: absolute;
-  left: -50px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 220px;
   display: flex;
   flex-direction: column;
@@ -871,8 +884,8 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
 }
 .desktop-pet__bubbles--above { bottom: calc(100% - 4px); }
 .desktop-pet__bubbles--below { top: calc(100% + 8px); }
-.desktop-pet__bubbles--align-left { left: 8px; }
-.desktop-pet__bubbles--align-right { left: auto; right: 8px; }
+.desktop-pet__bubbles--align-left { left: 8px; transform: none; }
+.desktop-pet__bubbles--align-right { left: auto; right: 8px; transform: none; }
 .desktop-pet__bubble-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1073,7 +1086,7 @@ body.panel-dragging { user-select: none; cursor: col-resize; }
   z-index: 35;
 }
 .desktop-pet__context--above { left: 50%; transform: translateX(-50%); bottom: calc(100% - 4px); }
-.desktop-pet__context--below { left: -50px; top: calc(100% + 8px); }
+.desktop-pet__context--below { left: 50%; transform: translateX(-50%); top: calc(100% + 8px); }
 .desktop-pet__context--left { left: auto; right: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
 .desktop-pet__context--right { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
 .desktop-pet__context--left.desktop-pet__context--v-top,
