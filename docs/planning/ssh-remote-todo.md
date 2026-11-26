@@ -75,7 +75,7 @@
 - [ ] ProxyCommand 支持
 - [ ] 跳板机密码
 - [ ] 私钥 passphrase 持久化策略
-- [ ] 远程搜索（远端 rg）
+- [x] 远程搜索（relay `search.grep` / `search.replace`，远端 rg 优先、Node 遍历回退）
 - [ ] 远程 AI（暂定不做）
 
 ## 已知限制
@@ -86,7 +86,7 @@
 - 主机密钥首次连接自动信任，尚无 UI 确认
 - nvm 安装的 Node 可能探测不到（非交互式 PATH），建议系统级安装
 - 远端无文件监听：仅在 SSH 会话 busy→idle（如终端命令结束）时补刷目录树与 GitTab；外部机器或后台进程改动仍需手动刷新
-- 远端暂不支持：内容搜索（ripgrep）、LSP、CodeGraph、PR、worktree、submodule、applyBranch
+- 远端暂不支持：LSP、CodeGraph、PR、worktree、submodule、applyBranch
 - 远端根按首次启动的 cwd 注册；两台主机同路径仍会串（同组键限制）
 
 ## 验证清单

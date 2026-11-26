@@ -3,6 +3,7 @@ import { dirname, join } from 'path'
 import { createInterface } from 'readline'
 import simpleGit from 'simple-git'
 import { buildFsTree, findFilesByName, searchPathsByName } from '../shared/fsWalk'
+import { grepFiles, replaceInFiles } from '../shared/contentSearch'
 
 const gitInstances = new Map<string, any>()
 
@@ -81,6 +82,12 @@ async function handle(method: string, params: any): Promise<any> {
 
     case 'fs.searchByName':
       return { matches: await searchPathsByName(params.cwd, params.query, params.skipPatterns || [], params.nameOnly) }
+
+    case 'search.grep':
+      return await grepFiles(params)
+
+    case 'search.replace':
+      return await replaceInFiles(params)
 
     case 'git.call': {
       const git = gitFor(params.cwd)

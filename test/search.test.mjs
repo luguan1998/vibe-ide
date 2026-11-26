@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-// === Inlined from src/main/search.ts ===
+// === Inlined from src/shared/contentSearch.ts ===
 function globToRegex(glob) {
   let pattern = glob
     .replace(/[.+^${}()|[\]\\*]/g, '\\$&')
