@@ -186,7 +186,7 @@ npm run build:win
 `clipboard-files`（文件剪贴板）没有预编译产物，`npm ci` 后必须本地编译出
 `node_modules/clipboard-files/build/Release/binding.node`，缺失时主进程启动即崩。
 
-本机环境坑：VS 2026（v18）+ node-gyp 11 自带的 `find-visualstudio` 认不出
+本机环境坑：VS 2026（v18）需要 node-gyp 12.1.0 以上才能识别；另外
 BuildTools 版缺少 `Microsoft.Cpp.Default.props`，直接 `node-gyp rebuild` 会报
 `MSB4019 找不到导入的项目`。解决 = 用 **VS Community 2026 的 MSBuild** 构建：
 
@@ -200,7 +200,7 @@ node -e "require('.')"                    # 验证加载 OK（输出 readFiles/w
 ```
 
 要点：
-- `node-gyp@13.1.0`（或更高）才认识 VS 2026；仓库 devDependencies 里的 11.5.0 不行。
+- `node-gyp@13.1.0`（仓库 devDependency；12.1.0 起才认识 VS 2026）。
 - MSBuild 必须走 Community 版路径（BuildTools 的 VCTargets 缺文件）；`VCTargetsPath` 结尾带 `\`。
 - 编译产物在 `build/Release/binding.node`（139KB），再次 `npm ci` 会被清掉，需重新执行上述步骤。
 

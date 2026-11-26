@@ -192,8 +192,8 @@ Outputs `dist/Vibe IDE Setup x64.exe` (NSIS) + a 7z. Install it and open a sessi
 you must compile `node_modules/clipboard-files/build/Release/binding.node`
 locally, or the main process crashes on startup.
 
-Machine-specific gotcha: with VS 2026 (v18), node-gyp 11's bundled
-`find-visualstudio` picks the BuildTools edition whose VCTargets lack
+Machine-specific gotcha: with VS 2026 (v18), `node-gyp` must be 12.1.0 or newer
+to recognize the VS version. BuildTools' VCTargets also lack
 `Microsoft.Cpp.Default.props`, so a plain `node-gyp rebuild` fails with
 `MSB4019`. Fix = build with the **VS Community 2026 MSBuild**:
 
@@ -207,7 +207,8 @@ node -e "require('.')"                    # verify it loads (prints readFiles/wr
 ```
 
 Notes:
-- `node-gyp@13.1.0` (or newer) recognizes VS 2026; the repo's pinned 11.5.0 does not.
+- `node-gyp@13.1.0` (repo devDependency; 12.1.0 is the first release to know
+  VS 2026).
 - MSBuild must be the Community edition path (BuildTools' VCTargets are
   incomplete); keep the trailing `\` on `VCTargetsPath`.
 - The output lands in `build/Release/binding.node` (139KB). Another `npm ci`

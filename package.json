@@ -183,7 +183,7 @@
     "electron": "^37.10.3",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
-    "node-gyp": "^11.5.0",
+    "node-gyp": "^13.1.0",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.4.49",
     "resedit": "^3.0.2",
