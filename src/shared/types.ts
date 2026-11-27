@@ -411,6 +411,7 @@ export interface PetWinState {
 export type PetWinEvent =
   | { type: 'btwReply'; detail: { pending?: boolean; text?: string | null; error?: string } }
   | { type: 'annotation'; detail: { rel: string; start?: number; end?: number } }
+  | { type: 'outsideClick' }
   | { type: 'refreshCss' }
 
 export type PetWinIntentType = 'sendLine' | 'sendLineTo' | 'getInput'

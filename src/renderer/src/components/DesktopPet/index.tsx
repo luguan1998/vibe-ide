@@ -7,7 +7,7 @@ export type { PetLogicalState }
 import { loadKeypadItems } from '../keypadItems'
 import { Edit, Send, MessageSquareQuote, Plug, X, BookOpenText, Pin, Sparkles, Loader2, RefreshCw, Zap } from 'lucide-react'
 import { KeypadConfigModal } from '../KeypadConfigModal'
-import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
+import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, PET_OUTSIDE_CLICK_EVENT } from '../vibeEvents'
 import type { PetBubbleItem, PetBubbleSection } from './bubbleRegistry'
 import { getPetScale, getPetVisible, onPetPrefsChanged, getPetFrameRate, getPetLogicalFramesOverride, getPetLogicalStateOverride, getPetListenAi, getPetAutoSuggest, setPetAutoSuggest } from './petSettings'
 import { AiReplyBubble } from './AiReplyBubble'
@@ -484,19 +484,22 @@ export function DesktopPet({ logicalState, activeSessionId, activeSessionCwd, se
     return () => cancelAnimationFrame(id)
   }, [contextOpen, contextBtw])
 
-  // 点面板外关闭 popup/context/AI 回复气泡
+  const closeBubbles = useCallback(() => {
+    setPopupOpen(false)
+    if (!contextPinned) setContextOpen(false)
+    setAiBubbleOpen(false)
+  }, [contextPinned])
+
+  // 独立窗口内的点击全部落在 wrapper 内（其余区域点击穿透），窗口外点击靠主窗口转发 + 失焦收起
   useEffect(() => {
     if (!popupOpen && !contextOpen && !aiBubbleOpen) return
-    const onDown = (ev: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(ev.target as Node)) {
-        setPopupOpen(false)
-        if (!contextPinned) setContextOpen(false)
-        setAiBubbleOpen(false)
-      }
+    window.addEventListener('blur', closeBubbles)
+    window.addEventListener(PET_OUTSIDE_CLICK_EVENT, closeBubbles)
+    return () => {
+      window.removeEventListener('blur', closeBubbles)
+      window.removeEventListener(PET_OUTSIDE_CLICK_EVENT, closeBubbles)
     }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [popupOpen, contextOpen, aiBubbleOpen, contextPinned])
+  }, [popupOpen, contextOpen, aiBubbleOpen, closeBubbles])
 
   useLayoutEffect(() => {
     if (!contextOpen && !configOpen && !aiBubbleOpen) return

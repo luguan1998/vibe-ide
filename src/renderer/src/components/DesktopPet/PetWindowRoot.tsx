@@ -4,7 +4,7 @@ import { DesktopPet, type PetWindowBridge } from './index'
 import { applyPetPrefs } from './petSettings'
 import { useTheme } from '../../themes'
 import { applySnippetsCss } from '../../petWindowCss'
-import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT } from '../vibeEvents'
+import { ADD_ANNOTATION_EVENT, BTW_REPLY_EVENT, PET_OUTSIDE_CLICK_EVENT } from '../vibeEvents'
 
 export function PetWindowRoot() {
   const [state, setState] = useState<PetWinState | null>(null)
@@ -28,6 +28,8 @@ export function PetWindowRoot() {
         window.dispatchEvent(new CustomEvent(BTW_REPLY_EVENT, { detail: evt.detail }))
       } else if (evt.type === 'annotation') {
         window.dispatchEvent(new CustomEvent(ADD_ANNOTATION_EVENT, { detail: evt.detail }))
+      } else if (evt.type === 'outsideClick') {
+        window.dispatchEvent(new CustomEvent(PET_OUTSIDE_CLICK_EVENT))
       } else if (evt.type === 'refreshCss') {
         void applySnippetsCss()
       }

@@ -1673,6 +1673,13 @@ export default function App() {
     return () => window.removeEventListener(ADD_ANNOTATION_EVENT, handler)
   }, [])
 
+  // 主窗口点击转发给宠物窗口：独立窗口收不到主窗口的 mousedown，气泡靠它收起
+  useEffect(() => {
+    const handler = () => window.api.petWin.pushEvent({ type: 'outsideClick' })
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const handleAiAgentStatusChange = useCallback((sessionId: string, status: 'running' | 'idle') => {
     const v = status === 'running'
     setAiBusy(prev => {
