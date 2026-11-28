@@ -56,7 +56,7 @@ export function registerPlanExecuteHandlers(): void {
       }
 
       const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
-      const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
+      const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse, prev?.browserCwd ?? cwd)
       const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, resumeSessionId: claudeSessionId, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
       if ('error' in result) {
         stopCuForSession(sessionId, prev?.computerUse)
@@ -69,7 +69,7 @@ export function registerPlanExecuteHandlers(): void {
         return { success: false, error: result.error, installCmd: result.installCmd }
       }
 
-      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, claudeSessionId)
+      attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, claudeSessionId, prev?.browserCwd ?? cwd)
 
       const newSession = aiSessions.get(sessionId)
       if (newSession && prev) {
@@ -106,7 +106,7 @@ export function registerPlanExecuteHandlers(): void {
 
     // 3. Spawn fresh subprocess in bypassPermissions mode (no --resume = clean context)
     const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
-    const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
+    const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse, prev?.browserCwd ?? cwd)
     const result = spawnClaude({ cwd, permissionMode: 'bypassPermissions', model, cliCommand: prev?.cliCommand, configDir: prev?.configDir, computerUse: prev?.computerUse, browserUse: prev?.browserUse, mcpConfigPath, browserMcpConfigPath })
     if ('error' in result) {
       stopCuForSession(sessionId, prev?.computerUse)
@@ -120,7 +120,7 @@ export function registerPlanExecuteHandlers(): void {
     }
 
     // 4. Attach stdout/stderr/error/exit handlers
-    attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse)
+    attachAiProcess(sessionId, result, cwd, model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, undefined, prev?.browserCwd ?? cwd)
 
     if (prev?.contextWindow || prev?.model) {
       const newSession = aiSessions.get(sessionId)

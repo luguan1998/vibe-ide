@@ -206,7 +206,7 @@ const api = {
     }
   },
 
-  onBrowserOpen: (callback: (data: { url?: string } | undefined) => void) => {
+  onBrowserOpen: (callback: (data: { url?: string; cwd?: string } | undefined) => void) => {
     const handler = (_event: any, data: any) => callback(data)
     ipcRenderer.on(IPC_CHANNELS.BROWSER_OPEN, handler)
     return handler
@@ -352,7 +352,8 @@ const api = {
 
   // System info
   system: {
-    listFonts: () => ipcRenderer.invoke(IPC_CHANNELS.FONT_LIST) as Promise<string[]>
+    listFonts: () => ipcRenderer.invoke(IPC_CHANNELS.FONT_LIST) as Promise<string[]>,
+    bindWebview: (webContentsId: number, cwd: string) => ipcRenderer.send(IPC_CHANNELS.WEBVIEW_BIND, webContentsId, cwd)
   },
 
   // CodeGraph operations

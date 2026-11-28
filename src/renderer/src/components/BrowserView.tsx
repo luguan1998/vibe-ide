@@ -5,6 +5,7 @@ import { InlineAnnotationInput } from './AiTab'
 import { toFileUrl, resolveAbsPath } from '../utils/filePathUtils'
 
 interface BrowserViewProps {
+  cwd: string
   onBack: () => void
   onAnnotate: (line: string) => void
   docked?: boolean
@@ -34,13 +35,20 @@ function injectCtxCloseScript(): string {
   })()`
 }
 
-// webview 搬家（中栏 ↔ 右栏覆盖）必然重挂载，用模块级变量保住当前网址与缩放
-let lastBrowserUrl = 'about:blank'
-let lastBrowserZoom = 1
+// 每个 cwd 一份网址/缩放；切 cwd 只隐藏不卸载，这里只兜底停靠切换后的重挂载
+const browserState = new Map<string, { url: string; zoom: number }>()
+
+function setBrowserUrl(cwd: string, url: string) {
+  browserState.set(cwd, { url, zoom: browserState.get(cwd)?.zoom ?? 1 })
+}
+
+function setBrowserZoom(cwd: string, zoom: number) {
+  browserState.set(cwd, { url: browserState.get(cwd)?.url ?? 'about:blank', zoom })
+}
 
 // 停靠偏好为右侧时，浏览器尚未挂载就要先定好起始网址（挂载时作为初始 url/address）
-export function setBrowserStartUrl(u: string) {
-  if (u) lastBrowserUrl = u
+export function setBrowserStartUrl(cwd: string, u: string) {
+  if (u) setBrowserUrl(cwd, u)
 }
 
 // 地址栏输入的路径判定：盘符/绝对/相对前缀，或以 .html 结尾且首段不像域名（src/a.html 本地、example.com/a.html 域名）
@@ -134,13 +142,16 @@ const INJECT_REMOVE = `
 })();
 `
 
-const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(function BrowserView({ onBack, onAnnotate, docked, onToggleDock, workspacePath }: BrowserViewProps, ref) {
+const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(function BrowserView({ cwd, onBack, onAnnotate, docked, onToggleDock, workspacePath }: BrowserViewProps, ref) {
   const { t } = useI18n()
   const webviewRef = useRef<any>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const annotationRef = useRef<PickData | null>(null)
-  const [url, setUrl] = useState(() => lastBrowserUrl)
-  const [address, setAddress] = useState(() => (lastBrowserUrl && lastBrowserUrl !== 'about:blank' ? lastBrowserUrl : ''))
+  const [url, setUrl] = useState(() => browserState.get(cwd)?.url ?? 'about:blank')
+  const [address, setAddress] = useState(() => {
+    const u = browserState.get(cwd)?.url ?? ''
+    return u && u !== 'about:blank' ? u : ''
+  })
   const [annotation, setAnnotation] = useState<PickData | null>(null)
   annotationRef.current = annotation
   const [pickMode, setPickMode] = useState(false)
@@ -148,7 +159,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
   const pickRef = useRef(false)
   pickRef.current = pick
   const [loading, setLoading] = useState(false)
-  const [zoom, setZoom] = useState(() => lastBrowserZoom)
+  const [zoom, setZoom] = useState(() => browserState.get(cwd)?.zoom ?? 1)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuRef = useRef<HTMLDivElement>(null)
 
@@ -156,9 +167,9 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     loadURL: (u: string) => {
       const wv = webviewRef.current
       if (!wv) return
-      try { wv.loadURL(u).catch((err: any) => { if (!String(err?.message ?? err ?? '').includes('ERR_ABORTED')) console.warn('loadURL failed:', err) }); setUrl(u); setAddress(u); lastBrowserUrl = u } catch {}
+      try { wv.loadURL(u).catch((err: any) => { if (!String(err?.message ?? err ?? '').includes('ERR_ABORTED')) console.warn('loadURL failed:', err) }); setUrl(u); setAddress(u); setBrowserUrl(cwd, u) } catch {}
     }
-  }), [])
+  }), [cwd])
 
   useEffect(() => {
     if (docked) return
@@ -204,7 +215,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     }
     const onNav = (e: any) => {
       setAddress(e.url ?? '')
-      if (typeof e.url === 'string' && e.url && e.url !== 'about:blank') lastBrowserUrl = e.url
+      if (typeof e.url === 'string' && e.url && e.url !== 'about:blank') setBrowserUrl(cwd, e.url)
       if (pickRef.current) { try { wv.executeJavaScript(INJECT_INSTALL) } catch {} }
     }
     const onWillNav = (e: any) => {
@@ -220,7 +231,13 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
       setCtxMenu({ x: (p.x ?? 0) - window.screenX, y: (p.y ?? 0) - window.screenY })
       try { wv.executeJavaScript(injectCtxCloseScript()) } catch {}
     }
-    const onDomReady = () => { try { wv.setZoomFactor(lastBrowserZoom) } catch {} }
+    const onDomReady = () => {
+      try { wv.setZoomFactor(browserState.get(cwd)?.zoom ?? 1) } catch {}
+      try {
+        const id = wv.getWebContentsId()
+        if (id) window.api.system.bindWebview(id, cwd)
+      } catch {}
+    }
     wv.addEventListener('console-message', onConsole)
     wv.addEventListener('did-navigate', onNav)
     wv.addEventListener('did-navigate-in-page', onNav)
@@ -244,8 +261,8 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
   const applyZoom = useCallback((next: number) => {
     const v = Math.round(Math.min(2, Math.max(0.5, next)) * 10) / 10
     setZoom(v)
-    lastBrowserZoom = v
-  }, [])
+    setBrowserZoom(cwd, v)
+  }, [cwd])
 
   // zoom state 变化立即下发；初次挂载/每次导航由 dom-ready 兜底
   useEffect(() => {
@@ -288,8 +305,8 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     }
     setUrl(final)
     setAddress(final)
-    lastBrowserUrl = final
-  }, [address, workspacePath])
+    setBrowserUrl(cwd, final)
+  }, [address, workspacePath, cwd])
 
   return (
     <div className="flex flex-col h-full animate-fade-in" style={{ cursor: pick ? 'crosshair' : 'default' }}>

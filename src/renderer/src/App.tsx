@@ -228,14 +228,14 @@ declare global {
       appVersion: () => Promise<string>
       appHome: () => Promise<string>
       perf: { snapshot: () => Promise<any> }
-      system: { listFonts: () => Promise<string[]> }
+      system: { listFonts: () => Promise<string[]>; bindWebview: (webContentsId: number, cwd: string) => void }
       onFontAdjust: (callback: (delta: number) => void) => any
       removeFontAdjustListener: (handler?: any) => void
       onFocusSettings: (callback: () => void) => any
       removeFocusSettingsListener: (handler?: any) => void
       onStartupOpenPath: (callback: (data: { type: 'directory' | 'file'; path: string }) => void) => any
       removeStartupOpenPathListener: (handler?: any) => void
-      onBrowserOpen: (callback: (data: { url?: string } | undefined) => void) => any
+      onBrowserOpen: (callback: (data: { url?: string; cwd?: string } | undefined) => void) => any
       removeBrowserOpenListener: (handler?: any) => void
       ai: {
         checkAvailable: (cliCommand?: string, backend?: 'claude' | 'pi') => Promise<{ available: boolean; installCmd?: string; error?: string }>
@@ -1025,11 +1025,17 @@ export default function App() {
   // Terminal refs for focus management (keyed by sessionId)
   const terminalRefs = useRef<Record<string, TerminalViewHandle>>({})
   const aiTabRefs = useRef<Record<string, AiTabHandle>>({})
-  const browserViewRef = useRef<BrowserViewHandle | null>(null)
-  const [browserDocked, setBrowserDocked] = useState(false)
+  const browserViewRefs = useRef<Record<string, BrowserViewHandle | null>>({})
+  const [browserByCwd, setBrowserByCwd] = useState<Record<string, { docked: boolean }>>({})
+  const browserByCwdRef = useRef(browserByCwd)
+  browserByCwdRef.current = browserByCwd
+  const activeSessionCwdRef = useRef(activeSessionCwd)
+  activeSessionCwdRef.current = activeSessionCwd
+  const activeBrowserCwd = activeSessionCwd ?? ''
+  const activeBrowserEntry = browserByCwd[activeBrowserCwd]
+  const browserDocked = !!activeBrowserEntry?.docked
   const [browserDockNonce, setBrowserDockNonce] = useState(0)
-  const browserDockedRef = useRef(false)
-  const browserDockPrevWidth = useRef<{ key: string; width: number } | null>(null)
+  const browserDockPrevWidth = useRef<Record<string, number>>({})
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
   const sessionPanelRef = useRef<SessionPanelHandle>(null)
@@ -1601,20 +1607,21 @@ export default function App() {
 
   const handleBrowseUrl = useCallback((url: string) => {
     if (!url) return
-    if (browserDockedRef.current) {
-      setBrowserDockNonce(n => n + 1)
-      browserViewRef.current?.loadURL(url)
+    const cwd = activeSessionCwdRef.current ?? ''
+    setBrowserStartUrl(cwd, url)
+    const entry = browserByCwdRef.current[cwd]
+    if (entry) {
+      browserViewRefs.current[cwd]?.loadURL(url)
+      if (entry.docked) setBrowserDockNonce(n => n + 1)
+      else setCenterView('browser')
       return
     }
-    if (centerViewRef.current === 'browser') { browserViewRef.current?.loadURL(url); return }
-    if (rightPanelWideRef.current && sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd) {
-      setBrowserStartUrl(url)
-      browserDockedRef.current = true
-      setBrowserDocked(true)
+    if (rightPanelWideRef.current && cwd) {
+      setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: true } }))
       setBrowserDockNonce(n => n + 1)
       return
     }
-    setBrowserStartUrl(url)
+    setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: false } }))
     setCenterView('browser')
   }, [])
 
@@ -1647,7 +1654,7 @@ export default function App() {
       return !!sid && sessionsRef.current.find(s => s.id === sid)?.kind === 'gui' && rightPanelWideRef.current
     }
     ;(window as any).__vibeBrowse = handleBrowseUrl
-    ;(window as any).__vibeIsBrowserOpen = () => browserDockedRef.current || centerViewRef.current === 'browser'
+    ;(window as any).__vibeIsBrowserOpen = () => !!browserByCwdRef.current[activeSessionCwdRef.current ?? ''] || centerViewRef.current === 'browser'
   }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
 
   // 加入对话：AI 对话场景 + 右栏宽栏时直接落 AiTab 输入框（宠物气泡那边按同一判据跳过）
@@ -1942,6 +1949,17 @@ export default function App() {
     }
     closeAllTabsAndReturn()
   }, [closeAllTabsAndReturn])
+
+  // 浏览器按 cwd 保活：切到有实例的 cwd 就显示它，切到没有的回终端
+  useEffect(() => {
+    const cwd = activeSessionCwd ?? ''
+    const entry = browserByCwdRef.current[cwd]
+    if (centerViewRef.current === 'browser') {
+      if (!entry || entry.docked) setCenterView('terminal')
+      return
+    }
+    if (entry && !entry.docked && centerViewRef.current === 'terminal') setCenterView('browser')
+  }, [activeSessionCwd])
 
   const confirmSessionSwitch = useCallback(async (mode: 'save' | 'discard') => {
     setSessionSwitchAsk(null)
@@ -3322,75 +3340,114 @@ export default function App() {
     setNavigateToFilePayload({ trigger: Date.now(), filePath })
   }, [])
 
-  // 浏览器停靠期间临时加宽的右栏，关闭/移回中栏时还原本来的宽度（回到记录时的 cwd，避免串到别的 cwd）
-  const restoreBrowserDockWidth = useCallback(() => {
-    const prev = browserDockPrevWidth.current
-    browserDockPrevWidth.current = null
-    if (!prev) return
+  // 浏览器停靠期间临时加宽的右栏，关闭/移回中栏时还原本来的宽度
+  const widenBrowserDock = useCallback((cwd: string) => {
+    if (browserDockPrevWidth.current[cwd] !== undefined) return
+    browserDockPrevWidth.current[cwd] = rightPanelWidthByCwd[cwd] ?? RIGHT_PANEL_DEFAULT_W
+    const leftW = leftPanelCollapsed ? 0 : leftPanelWidth + 1
+    const maxW = window.innerWidth - leftW - BROWSER_DOCK_MIN_CENTER_W - 1
+    setRightPanelWidthByCwd(m => ({ ...m, [cwd]: Math.max(RIGHT_PANEL_DEFAULT_W, Math.min(BROWSER_DOCK_W, maxW)) }))
+  }, [rightPanelWidthByCwd, leftPanelWidth, leftPanelCollapsed])
+
+  const restoreBrowserDockWidth = useCallback((cwd: string) => {
+    const prev = browserDockPrevWidth.current[cwd]
+    if (prev === undefined) return
+    delete browserDockPrevWidth.current[cwd]
     setRightPanelWidthByCwd(m => {
-      const cur = m[prev.key] ?? RIGHT_PANEL_DEFAULT_W
-      if (cur === prev.width) return m
-      return { ...m, [prev.key]: prev.width }
+      const cur = m[cwd] ?? RIGHT_PANEL_DEFAULT_W
+      if (cur === prev) return m
+      return { ...m, [cwd]: prev }
     })
   }, [])
 
-  const handleCloseBrowser = useCallback(() => {
-    browserDockedRef.current = false
-    setBrowserDocked(false)
-    restoreBrowserDockWidth()
-    setCenterView('terminal')
+  const handleCloseBrowser = useCallback((cwd: string) => {
+    setBrowserByCwd(prev => {
+      if (!(cwd in prev)) return prev
+      const next = { ...prev }
+      delete next[cwd]
+      return next
+    })
+    delete browserViewRefs.current[cwd]
+    restoreBrowserDockWidth(cwd)
+    if (cwd === (activeSessionCwdRef.current ?? '') && centerViewRef.current === 'browser') setCenterView('terminal')
   }, [restoreBrowserDockWidth])
 
-  const handleToggleBrowserDock = useCallback(() => {
-    const next = !browserDockedRef.current
-    browserDockedRef.current = next
-    setBrowserDocked(next)
+  // 关掉某 cwd 的最后一个会话时，一并释放它的浏览器实例
+  useEffect(() => {
+    const liveCwds = new Set(sessions.map(s => cwdBucketKey(s.cwd)).filter(Boolean))
+    for (const cwd of Object.keys(browserByCwdRef.current)) {
+      if (cwd && !liveCwds.has(cwdBucketKey(cwd))) handleCloseBrowser(cwd)
+    }
+  }, [sessions, handleCloseBrowser])
+
+  const handleToggleBrowserDock = useCallback((cwd: string) => {
+    const next = !(browserByCwdRef.current[cwd]?.docked ?? false)
+    setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: next } }))
     if (next) {
       if (centerViewRef.current === 'browser') setCenterView('terminal')
+      widenBrowserDock(cwd)
       setBrowserDockNonce(n => n + 1)
     } else {
-      restoreBrowserDockWidth()
-      setCenterView('browser')
+      restoreBrowserDockWidth(cwd)
+      if (cwd === (activeSessionCwdRef.current ?? '')) setCenterView('browser')
     }
-  }, [restoreBrowserDockWidth])
+  }, [widenBrowserDock, restoreBrowserDockWidth])
+
+  const openBrowserDocked = useCallback((cwd: string) => {
+    setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: true } }))
+    if (centerViewRef.current === 'browser') setCenterView('terminal')
+    widenBrowserDock(cwd)
+    setBrowserDockNonce(n => n + 1)
+  }, [widenBrowserDock])
 
   // 打开网页调试：默认跟随右栏模式（宽栏则落右栏覆盖 Nga tab，否则落中栏），之后仍可在浏览器内手动切换停靠
   const handleOpenWebDebug = useCallback(() => {
-    if (browserDockedRef.current) {
-      setBrowserDockNonce(n => n + 1)
+    const cwd = activeSessionCwd ?? ''
+    const entry = browserByCwdRef.current[cwd]
+    if (entry) {
+      if (entry.docked) setBrowserDockNonce(n => n + 1)
+      else setCenterView('browser')
       return
     }
-    if (isRightPanelWide(rightPanelCollapsed, rightPanelWidth) && activeSessionCwd) {
-      if (centerViewRef.current === 'browser') setCenterView('terminal')
-      browserDockedRef.current = true
-      setBrowserDocked(true)
-      setBrowserDockNonce(n => n + 1)
+    if (isRightPanelWide(rightPanelCollapsed, rightPanelWidth) && cwd) {
+      openBrowserDocked(cwd)
       return
     }
+    setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: false } }))
     setCenterView('browser')
-  }, [activeSessionCwd, rightPanelCollapsed, rightPanelWidth])
+  }, [activeSessionCwd, rightPanelCollapsed, rightPanelWidth, openBrowserDocked])
 
   // Nga 内置浏览器入口：不受右栏模式影响，直接停靠右栏并加宽右栏
   const handleOpenBrowserRight = useCallback(() => {
-    if (centerViewRef.current === 'browser') setCenterView('terminal')
-    browserDockedRef.current = true
-    setBrowserDocked(true)
-    if (browserDockPrevWidth.current === null) {
-      browserDockPrevWidth.current = { key: rightPanelWidthKey, width: rightPanelWidth }
-      const leftW = leftPanelCollapsed ? 0 : leftPanelWidth + 1
-      const maxW = window.innerWidth - leftW - BROWSER_DOCK_MIN_CENTER_W - 1
-      setRightPanelWidth(Math.max(RIGHT_PANEL_DEFAULT_W, Math.min(BROWSER_DOCK_W, maxW)))
-    }
-    setBrowserDockNonce(n => n + 1)
-  }, [rightPanelWidth, rightPanelWidthKey, leftPanelWidth, leftPanelCollapsed, setRightPanelWidth])
+    openBrowserDocked(activeSessionCwd ?? '')
+  }, [activeSessionCwd, openBrowserDocked])
 
   useEffect(() => {
     const handler = window.api.onBrowserOpen((data) => {
-      if (data?.url) setBrowserStartUrl(data.url)
-      if (rightPanelCollapsed) {
-        window.resizeBy(rightPanelWidth + 1, 0)
-        setRightPanelCollapsed(false)
+      const active = activeSessionCwdRef.current ?? ''
+      const cwd = data?.cwd ?? active
+      if (data?.url) {
+        setBrowserStartUrl(cwd, data.url)
+        browserViewRefs.current[cwd]?.loadURL(data.url)
       }
+      const ensurePanel = () => {
+        if (rightPanelCollapsed) {
+          window.resizeBy(rightPanelWidth + 1, 0)
+          setRightPanelCollapsed(false)
+        }
+      }
+      if (cwd !== active) {
+        ensurePanel()
+        setBrowserByCwd(prev => prev[cwd]?.docked ? prev : { ...prev, [cwd]: { docked: true } })
+        return
+      }
+      const entry = browserByCwdRef.current[cwd]
+      if (entry) {
+        if (entry.docked) ensurePanel()
+        else if (centerViewRef.current !== 'browser') setCenterView('browser')
+        return
+      }
+      ensurePanel()
       handleOpenBrowserRight()
     })
     return () => window.api.removeBrowserOpenListener(handler)
@@ -3846,6 +3903,7 @@ export default function App() {
   const centerGapX = panelWide || !rightPanelShown ? 'ml-1 mr-0' : 'mx-1'
   // 中间栏所有内容块同一套卡片：终端 / AiTab / 浏览器 / 文件（diff·md·图片）/ 看板
   const centerCardCls = `flex-1 ${centerGapX} border-2 border-ide-border rounded-lg overflow-hidden flex flex-col center-card`
+  const dockedBrowserCwds = Object.keys(browserByCwd).filter(cwd => browserByCwd[cwd].docked)
   const callGraphDock = callGraphEl && !callGraphDockedRight ? (
     <>
       <div className={`${centerGapX} shrink-0 h-1 cursor-ns-resize bg-ide-border hover:bg-ide-accent/60 transition-colors`} onMouseDown={handleCallGraphResizeStart} />
@@ -3934,7 +3992,7 @@ export default function App() {
           </svg>
         </button>
         <button
-          className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${browserDocked || centerView === 'browser' ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
+          className={`no-drag w-6 h-6 rounded flex items-center justify-center transition-colors shrink-0 ${activeBrowserEntry && (browserDocked || centerView === 'browser') ? 'text-ide-accent bg-ide-accent/10' : 'text-ide-text-muted hover:text-ide-text hover:bg-ide-hover'}`}
           style={{ marginRight: 16 }}
           onClick={handleOpenWebDebug}
           title={t('Web Debug')}
@@ -4088,15 +4146,17 @@ export default function App() {
               {fileTabsNode}
             </div>
           )}
-          {/* Browser */}
-          {centerView === 'browser' && !browserDocked && (
+          {/* Browser — 中栏只挂当前 cwd，切走即卸载；右栏停靠的实例常驻 */}
+          {centerView === 'browser' && !browserDocked && activeBrowserEntry && (
             <div className={centerCardCls}>
               <BrowserView
-                ref={browserViewRef}
-                onBack={handleCloseBrowser}
+                key={activeBrowserCwd}
+                ref={(el) => { browserViewRefs.current[activeBrowserCwd] = el }}
+                cwd={activeBrowserCwd}
+                onBack={() => handleCloseBrowser(activeBrowserCwd)}
                 onAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
-                onToggleDock={activeSessionCwd ? handleToggleBrowserDock : undefined}
-                workspacePath={activeSessionCwd}
+                onToggleDock={activeBrowserCwd ? () => handleToggleBrowserDock(activeBrowserCwd) : undefined}
+                workspacePath={activeBrowserCwd || null}
               />
             </div>
           )}
@@ -4307,10 +4367,19 @@ export default function App() {
             brushActive={brushActive}
             browserDocked={browserDocked}
             browserDockNonce={browserDockNonce}
-            browserViewRef={browserViewRef}
-            onBrowserBack={handleCloseBrowser}
-            onBrowserAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
-            onBrowserToggleDock={handleToggleBrowserDock}
+            browserDockContent={dockedBrowserCwds.length ? dockedBrowserCwds.map(cwd => (
+              <div key={cwd} className="flex-1 min-h-0 flex flex-col" style={{ display: cwd === activeBrowserCwd ? 'flex' : 'none' }}>
+                <BrowserView
+                  ref={(el) => { browserViewRefs.current[cwd] = el }}
+                  cwd={cwd}
+                  docked
+                  onBack={() => handleCloseBrowser(cwd)}
+                  onAnnotate={(line) => { (window as any).__vibeAppendInput?.(line) }}
+                  onToggleDock={() => handleToggleBrowserDock(cwd)}
+                  workspacePath={cwd || null}
+                />
+              </div>
+            )) : null}
             onOpenBrowser={handleOpenBrowserRight}
             onOpenSessionHistory={handleOpenHistoryTab}
             recentFiles={recentFiles}

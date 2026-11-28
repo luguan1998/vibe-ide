@@ -308,6 +308,11 @@ app.whenReady().then(() => {
     }
   })
 
+  // webview 绑 cwd：browser-use 按会话 cwd 找目标页面
+  ipcMain.on(IPC_CHANNELS.WEBVIEW_BIND, (_e, webContentsId: number, cwd: string) => {
+    try { require('./browser-use').bindWebview(webContentsId, cwd) } catch { /* ignore */ }
+  })
+
   // App version
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
   ipcMain.handle(IPC_CHANNELS.APP_HOME, () => app.getPath('home'))

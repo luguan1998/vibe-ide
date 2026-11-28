@@ -94,7 +94,7 @@ function setupGuiMcp(options: AiCreateOptions): { extensionPath?: string; env?: 
   }
   if (options.browserUse) {
     try {
-      const r = startBmSession(options.sessionId)
+      const r = startBmSession(options.sessionId, options.cwd)
       servers['vibe-browser'] = {
         command: process.execPath,
         args: [resourceScript('browser-mcp.js')],

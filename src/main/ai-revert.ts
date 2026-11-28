@@ -154,7 +154,7 @@ export function registerRevertHandlers(): void {
     // (CLI 会在 worktree 内再嵌套新建一个);从未进入的才让 CLI 重建
     const needsFreshWorktree = !!(prev?.enableWorktree && !prev?.worktreePath)
     const mcpConfigPath = startCuForSession(sessionId, prev?.computerUse)
-    const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse)
+    const browserMcpConfigPath = startBmForSession(sessionId, prev?.browserUse, prev?.browserCwd ?? effectiveCwd)
     const spawnResult = spawnClaude({
       cwd: effectiveCwd,
       permissionMode: prev?.permissionMode || 'bypassPermissions',
@@ -179,7 +179,7 @@ export function registerRevertHandlers(): void {
       return { success: false, error: spawnResult.error, installCmd: spawnResult.installCmd }
     }
 
-    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, hasHistory ? claudeSessionId : undefined)
+    attachAiProcess(sessionId, spawnResult, effectiveCwd, prev?.model, prev?.configDir, prev?.cliCommand, prev?.computerUse, prev?.browserUse, hasHistory ? claudeSessionId : undefined, prev?.browserCwd ?? effectiveCwd)
 
     if (prev) {
       const s = aiSessions.get(sessionId)

@@ -11,7 +11,6 @@ import { ModalOverlay } from './ModalOverlay'
 import { hasExternalFileDrag, droppedFilePaths, copyExternalFilesInto } from '../utils/fileDrop'
 import { PanelGitIcon, PanelDirIcon } from '../panelIcons'
 import GameLauncher from './GameLauncher'
-import BrowserView, { BrowserViewHandle } from './BrowserView'
 import { getShortcuts, eventMatchesBinding } from '../shortcuts'
 import { AuxTerminalTab, RecentFileEntry } from '@shared/types'
 
@@ -55,10 +54,7 @@ interface RightPanelProps {
   onSubmoduleNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>>>
   browserDocked?: boolean
   browserDockNonce?: number
-  browserViewRef?: React.MutableRefObject<BrowserViewHandle | null>
-  onBrowserBack?: () => void
-  onBrowserAnnotate?: (line: string) => void
-  onBrowserToggleDock?: () => void
+  browserDockContent?: React.ReactNode
   panelWide?: boolean
   contentOverlay?: React.ReactNode
   contentOverlayKind?: 'files' | 'graph' | null
@@ -412,10 +408,7 @@ function RightPanel({
   onSubmoduleNavChange,
   browserDocked,
   browserDockNonce,
-  browserViewRef,
-  onBrowserBack,
-  onBrowserAnnotate,
-  onBrowserToggleDock,
+  browserDockContent,
   panelWide,
   contentOverlay,
   contentOverlayKind,
@@ -806,18 +799,9 @@ function RightPanel({
         </div>
       )}
 
-      {dockKind === 'browser' && (
-        <div className={DOCK_SHELL_CLS}>
-          <div className={DOCK_CARD_CLS}>
-            <BrowserView
-              ref={browserViewRef ?? undefined}
-              docked
-              onBack={onBrowserBack ?? (() => {})}
-              onAnnotate={onBrowserAnnotate ?? (() => {})}
-              onToggleDock={onBrowserToggleDock}
-              workspacePath={workspacePath}
-            />
-          </div>
+      {browserDockContent && (
+        <div className={DOCK_SHELL_CLS} style={dockKind === 'browser' ? undefined : { display: 'none' }}>
+          <div className={DOCK_CARD_CLS}>{browserDockContent}</div>
         </div>
       )}
 

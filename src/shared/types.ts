@@ -213,6 +213,7 @@ export const IPC_CHANNELS = {
   SNIPPETS_LOAD: 'app:snippetsLoad',
   SNIPPETS_TOGGLE: 'app:snippetsToggle',
   BROWSER_OPEN: 'browser:open',           // push: 浏览器操控无 webview 时请求前端打开右栏浏览器
+  WEBVIEW_BIND: 'webview:bind',           // webview dom-ready 后绑定 cwd，供 browser-use 按会话路由
 
   // Board (session kanban)
   BOARD_RECORDS: 'board:records',

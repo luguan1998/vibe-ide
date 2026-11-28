@@ -16,6 +16,30 @@ export interface BrowserToolResult {
 
 const live = new Map<number, WebContents>()
 const order: number[] = []
+const cwdOwners = new Map<string, number>()
+
+function normCwd(p: string): string {
+  return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
+// 渲染层每个 cwd 一个 webview；dom-ready 后把 webContentsId 绑到 cwd，AI 工具按会话 cwd 选目标
+export function bindWebview(webContentsId: number, cwd: string): void {
+  const key = normCwd(cwd)
+  if (key) cwdOwners.set(key, webContentsId)
+}
+
+function contentsForCwd(cwd: string): WebContents | null {
+  const key = normCwd(cwd)
+  if (!key) return null
+  const id = cwdOwners.get(key)
+  if (id === undefined) return null
+  const c = live.get(id)
+  if (!c || c.isDestroyed()) {
+    cwdOwners.delete(key)
+    return null
+  }
+  return c
+}
 const consoleBuf = new Map<number, ConsoleEntry[]>()
 const dialogBuf = new Map<number, DialogEntry[]>()
 const dbgHeld = new Set<number>()
@@ -139,7 +163,7 @@ export function trackWebview(contents: WebContents): void {
   live.set(contents.id, contents)
   order.push(contents.id)
   contents.on('did-navigate', () => {
-    refFrames.clear()
+    refFrames.delete(contents.id)
     consoleBuf.delete(contents.id)
     dialogBuf.delete(contents.id)
   })
@@ -167,10 +191,12 @@ export function trackWebview(contents: WebContents): void {
     live.delete(contents.id)
     const i = order.indexOf(contents.id)
     if (i >= 0) order.splice(i, 1)
+    refFrames.delete(contents.id)
     consoleBuf.delete(contents.id)
     dialogBuf.delete(contents.id)
     dialogWaiters.delete(contents.id)
     dbgHeld.delete(contents.id)
+    for (const [key, id] of cwdOwners) if (id === contents.id) cwdOwners.delete(key)
   })
 }
 
@@ -203,14 +229,15 @@ function normalizeNavUrl(raw: unknown): string {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u) || u.startsWith('//') ? u : 'https://' + u
 }
 
-async function ensureBrowser(url?: string): Promise<{ c: WebContents | null; opened: boolean }> {
-  const cur = active()
+async function ensureBrowser(cwd: string | undefined, url?: string): Promise<{ c: WebContents | null; opened: boolean }> {
+  const pick = () => (cwd ? contentsForCwd(cwd) : active())
+  const cur = pick()
   if (cur) return { c: cur, opened: false }
-  send(IPC_CHANNELS.BROWSER_OPEN, url ? { url } : {})
+  send(IPC_CHANNELS.BROWSER_OPEN, { ...(cwd ? { cwd } : {}), ...(url ? { url } : {}) })
   const t0 = Date.now()
   while (Date.now() - t0 < 5000) {
     await sleep(120)
-    const c = active()
+    const c = pick()
     if (c) {
       await settlePageShort(c)
       return { c, opened: !!url }
@@ -237,7 +264,16 @@ async function settlePage(c: WebContents, budget = 15000): Promise<void> {
 
 // ---------- frame plumbing (cross-origin capable) ----------
 
-const refFrames = new Map<string, WebFrameMain>()
+const refFrames = new Map<number, Map<string, WebFrameMain>>()
+
+function refsFor(id: number): Map<string, WebFrameMain> {
+  let m = refFrames.get(id)
+  if (!m) {
+    m = new Map()
+    refFrames.set(id, m)
+  }
+  return m
+}
 
 function framesOf(c: WebContents): WebFrameMain[] {
   const out: WebFrameMain[] = []
@@ -289,27 +325,28 @@ function sameFrame(a: WebFrameMain, b: WebFrameMain): boolean {
   }
 }
 
-function refFrame(ref: string): WebFrameMain | null {
-  const f = refFrames.get(ref)
+function refFrame(c: WebContents, ref: string): WebFrameMain | null {
+  const m = refFrames.get(c.id)
+  const f = m?.get(ref)
   if (!f) return null
   try {
     if (!f.url) {
-      refFrames.delete(ref)
+      m!.delete(ref)
       return null
     }
   } catch {
-    refFrames.delete(ref)
+    m!.delete(ref)
     return null
   }
   return f
 }
 
 async function execOnRef(c: WebContents, ref: string, job: string): Promise<any> {
-  const f = refFrame(ref)
+  const f = refFrame(c, ref)
   if (f && !sameFrame(f, c.mainFrame)) {
     const r = await safeExec(f, job)
     if (r.err) {
-      refFrames.delete(ref)
+      refFrames.get(c.id)?.delete(ref)
       return { lost: 1 }
     }
     return r.v
@@ -1027,7 +1064,7 @@ async function doSnapshot(c: WebContents, boxes: boolean, max: number): Promise<
     }
     const from = base
     base = Number(r.v.base) || base
-    for (let i = from + 1; i <= base; i++) refFrames.set('e' + i, f)
+    for (let i = from + 1; i <= base; i++) refsFor(c.id).set('e' + i, f)
     used += r.v.items.length
     if (r.v.truncated) truncated = true
     if (isMain) {
@@ -1064,13 +1101,13 @@ function combine(head: BrowserToolResult, snaps: BrowserToolResult[]): BrowserTo
 }
 
 async function clickRef(c: WebContents, ref: string, button: string, count: number): Promise<{ result: BrowserToolResult } | { note: string | null; hit: string | null }> {
-  const frame = refFrame(ref)
+  const frame = refFrame(c, ref)
   const inSub = !!frame && !sameFrame(frame, c.mainFrame)
   let pos: any
   if (inSub) {
     const r = await safeExec<any>(frame!, `(${CLICK_FN})(${JSON.stringify(ref)},${JSON.stringify(button || 'left')},${count})`)
     if (r.err) {
-      refFrames.delete(ref)
+      refFrames.get(c.id)?.delete(ref)
       return { result: lostResult(ref) }
     }
     pos = r.v
@@ -1123,8 +1160,8 @@ function withActionHints(c: WebContents, errBefore: number, res: BrowserToolResu
   return { content: [...res.content, { type: 'text', text: notes.join('\n') }], isError: res.isError }
 }
 
-export async function handleCall(name: string, args: any): Promise<BrowserToolResult> {
-  const { c, opened } = await ensureBrowser(name === 'navigate' ? normalizeNavUrl(args.url) : '')
+export async function handleCall(name: string, args: any, cwd?: string): Promise<BrowserToolResult> {
+  const { c, opened } = await ensureBrowser(cwd, name === 'navigate' ? normalizeNavUrl(args.url) : '')
   if (!c) return noBrowser()
   const errBefore = (consoleBuf.get(c.id) || []).filter((e) => e.level === 'error').length
   const res = await dispatch(c, name, args, opened)
@@ -1155,7 +1192,7 @@ async function dispatch(c: WebContents, name: string, args: any, opened: boolean
           if (!both.length) continue
           for (const line of both) {
             const m = String(line).match(/^([ef]\d+)/)
-            if (m) refFrames.set(m[1], f)
+            if (m) refsFor(c.id).set(m[1], f)
           }
           if (sameFrame(f, frames[0])) mainHits.push(...both)
           else subSections.push(`--- frame ${frameUrl(f) || '(blank)'} ---`, ...both)
@@ -1223,7 +1260,7 @@ async function dispatch(c: WebContents, name: string, args: any, opened: boolean
           const f = await execOnRef(c, ref, `(${FOCUS_FN})(${JSON.stringify(ref)})`)
           if (f?.lost) return lostResult(ref)
           focusRef = ref
-          focusFrame = refFrame(ref)
+          focusFrame = refFrame(c, ref)
         }
         const parsed = parseKeys(keys)
         if (parsed.err || !parsed.keyCode) return textResult(`bad keys "${keys}": ${parsed.err || 'no main key'}`, true)
@@ -1398,7 +1435,7 @@ return { ok: 1 };
         if (!code.trim()) return textResult('code required', true)
         const ref = args.ref ? okRef(args.ref) : null
         if (args.ref && !ref) return textResult('ref must be a snapshot ref like "e12"', true)
-        let target: WebFrameMain | null = ref ? refFrame(ref) : null
+        let target: WebFrameMain | null = ref ? refFrame(c, ref) : null
         if (!target && args.in_frame) {
           const sub = String(args.in_frame)
           target = framesOf(c).find((x) => frameUrl(x).includes(sub)) || null
@@ -1477,6 +1514,7 @@ return { ok: 1 };
 
 interface SessionState {
   sessionId: string
+  cwd: string
   pipeName: string
   token: string
   server: ReturnType<typeof createServer> | null
@@ -1493,7 +1531,7 @@ function resolveMcpScriptPath(): string {
 }
 
 async function handleClientCall(session: SessionState, name: string, args: any): Promise<BrowserToolResult> {
-  return handleCall(name.replace(/^browser_/, ''), args || {})
+  return handleCall(name.replace(/^browser_/, ''), args || {}, session.cwd)
 }
 
 async function handleClientMessage(session: SessionState, sock: import('net').Socket, msg: any): Promise<void> {
@@ -1510,7 +1548,7 @@ async function handleClientMessage(session: SessionState, sock: import('net').So
   }
 }
 
-export function startForSession(sessionId: string): { pipeName: string; token: string; mcpConfigPath: string } {
+export function startForSession(sessionId: string, cwd: string): { pipeName: string; token: string; mcpConfigPath: string } {
   const pipeName = `\\\\.\\pipe\\vibe-bm-${randomBytes(8).toString('hex')}`
   const token = randomBytes(16).toString('hex')
   const scriptPath = resolveMcpScriptPath()
@@ -1518,6 +1556,7 @@ export function startForSession(sessionId: string): { pipeName: string; token: s
 
   const session: SessionState = {
     sessionId,
+    cwd,
     pipeName,
     token,
     server: null,
