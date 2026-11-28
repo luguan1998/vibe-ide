@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, webContents } from 'electron'
 import type { WebContents, WebFrameMain } from 'electron'
 import { createServer } from 'net'
 import { join } from 'path'
@@ -14,9 +14,7 @@ export interface BrowserToolResult {
 
 // ---------- webview guest registry ----------
 
-const live = new Map<number, WebContents>()
-const order: number[] = []
-const cwdOwners = new Map<string, number>()
+const cwdOwners = new Map<string, WebContents>()
 
 function normCwd(p: string): string {
   return String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
@@ -25,15 +23,15 @@ function normCwd(p: string): string {
 // 渲染层每个 cwd 一个 webview；dom-ready 后把 webContentsId 绑到 cwd，AI 工具按会话 cwd 选目标
 export function bindWebview(webContentsId: number, cwd: string): void {
   const key = normCwd(cwd)
-  if (key) cwdOwners.set(key, webContentsId)
+  if (!key) return
+  const c = webContents.fromId(webContentsId)
+  if (c && !c.isDestroyed()) cwdOwners.set(key, c)
 }
 
 function contentsForCwd(cwd: string): WebContents | null {
   const key = normCwd(cwd)
   if (!key) return null
-  const id = cwdOwners.get(key)
-  if (id === undefined) return null
-  const c = live.get(id)
+  const c = cwdOwners.get(key)
   if (!c || c.isDestroyed()) {
     cwdOwners.delete(key)
     return null
@@ -160,8 +158,6 @@ function attachPersistentDebugger(contents: WebContents): void {
 }
 
 export function trackWebview(contents: WebContents): void {
-  live.set(contents.id, contents)
-  order.push(contents.id)
   contents.on('did-navigate', () => {
     refFrames.delete(contents.id)
     consoleBuf.delete(contents.id)
@@ -188,24 +184,13 @@ export function trackWebview(contents: WebContents): void {
   attachPersistentDebugger(contents)
   contents.on('dom-ready', () => attachPersistentDebugger(contents))
   contents.once('destroyed', () => {
-    live.delete(contents.id)
-    const i = order.indexOf(contents.id)
-    if (i >= 0) order.splice(i, 1)
     refFrames.delete(contents.id)
     consoleBuf.delete(contents.id)
     dialogBuf.delete(contents.id)
     dialogWaiters.delete(contents.id)
     dbgHeld.delete(contents.id)
-    for (const [key, id] of cwdOwners) if (id === contents.id) cwdOwners.delete(key)
+    for (const [key, owner] of cwdOwners) if (owner === contents) cwdOwners.delete(key)
   })
-}
-
-function active(): WebContents | null {
-  for (let i = order.length - 1; i >= 0; i--) {
-    const c = live.get(order[i])
-    if (c && !c.isDestroyed()) return c
-  }
-  return null
 }
 
 // ---------- helpers ----------
@@ -229,15 +214,14 @@ function normalizeNavUrl(raw: unknown): string {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u) || u.startsWith('//') ? u : 'https://' + u
 }
 
-async function ensureBrowser(cwd: string | undefined, url?: string): Promise<{ c: WebContents | null; opened: boolean }> {
-  const pick = () => (cwd ? contentsForCwd(cwd) : active())
-  const cur = pick()
+async function ensureBrowser(cwd: string, url?: string): Promise<{ c: WebContents | null; opened: boolean }> {
+  const cur = contentsForCwd(cwd)
   if (cur) return { c: cur, opened: false }
-  send(IPC_CHANNELS.BROWSER_OPEN, { ...(cwd ? { cwd } : {}), ...(url ? { url } : {}) })
+  send(IPC_CHANNELS.BROWSER_OPEN, { cwd, ...(url ? { url } : {}) })
   const t0 = Date.now()
   while (Date.now() - t0 < 5000) {
     await sleep(120)
-    const c = pick()
+    const c = contentsForCwd(cwd)
     if (c) {
       await settlePageShort(c)
       return { c, opened: !!url }
@@ -1160,7 +1144,8 @@ function withActionHints(c: WebContents, errBefore: number, res: BrowserToolResu
   return { content: [...res.content, { type: 'text', text: notes.join('\n') }], isError: res.isError }
 }
 
-export async function handleCall(name: string, args: any, cwd?: string): Promise<BrowserToolResult> {
+export async function handleCall(name: string, args: any, cwd: string): Promise<BrowserToolResult> {
+  if (!cwd) return noBrowser()
   const { c, opened } = await ensureBrowser(cwd, name === 'navigate' ? normalizeNavUrl(args.url) : '')
   if (!c) return noBrowser()
   const errBefore = (consoleBuf.get(c.id) || []).filter((e) => e.level === 'error').length

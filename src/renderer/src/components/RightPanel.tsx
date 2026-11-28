@@ -53,7 +53,6 @@ interface RightPanelProps {
   sessionSubmoduleNav: Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>
   onSubmoduleNavChange: React.Dispatch<React.SetStateAction<Record<string, { originalPath: string; submodulePath: string; submoduleName: string }>>>
   browserDocked?: boolean
-  browserDockNonce?: number
   browserDockContent?: React.ReactNode
   panelWide?: boolean
   contentOverlay?: React.ReactNode
@@ -407,7 +406,6 @@ function RightPanel({
   sessionSubmoduleNav,
   onSubmoduleNavChange,
   browserDocked,
-  browserDockNonce,
   browserDockContent,
   panelWide,
   contentOverlay,
@@ -593,18 +591,6 @@ function RightPanel({
       selectSection('git')
     }
   }, [lineHistoryPayload, selectSection])
-
-  // 浏览器停靠右栏 → 切到 Nga tab 展示覆盖层
-  useEffect(() => {
-    if (browserDocked && browserDockNonce) {
-      setVisibleTabs(prev => {
-        if (prev['game']) return prev
-        const next = { ...prev, game: true }
-        return next
-      })
-      setActiveSection('game')
-    }
-  }, [browserDocked, browserDockNonce])
 
   // 确保 activeSection 始终可见（处理隐藏当前 tab 的情况）
   useEffect(() => {

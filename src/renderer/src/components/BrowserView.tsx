@@ -172,7 +172,6 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
   }), [cwd])
 
   useEffect(() => {
-    if (docked) return
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
       if (!wrapperRef.current || !wrapperRef.current.offsetParent) return
@@ -185,7 +184,7 @@ const BrowserView = React.forwardRef<BrowserViewHandle, BrowserViewProps>(functi
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [onBack, pickMode, docked])
+  }, [onBack, pickMode])
 
   useEffect(() => {
     const wv = webviewRef.current

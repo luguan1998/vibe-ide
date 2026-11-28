@@ -1029,12 +1029,9 @@ export default function App() {
   const [browserByCwd, setBrowserByCwd] = useState<Record<string, { docked: boolean }>>({})
   const browserByCwdRef = useRef(browserByCwd)
   browserByCwdRef.current = browserByCwd
-  const activeSessionCwdRef = useRef(activeSessionCwd)
-  activeSessionCwdRef.current = activeSessionCwd
   const activeBrowserCwd = activeSessionCwd ?? ''
   const activeBrowserEntry = browserByCwd[activeBrowserCwd]
   const browserDocked = !!activeBrowserEntry?.docked
-  const [browserDockNonce, setBrowserDockNonce] = useState(0)
   const browserDockPrevWidth = useRef<Record<string, number>>({})
   const rightPanelRef = useRef<HTMLDivElement>(null)
   const centerPanelRef = useRef<HTMLDivElement>(null)
@@ -1565,6 +1562,10 @@ export default function App() {
   cancelPipeRef.current = cancelPipe
   const activeSessionIdRef = useRef(activeSessionId)
   activeSessionIdRef.current = activeSessionId
+  const activeCwdNow = useCallback(
+    () => sessionsRef.current.find(s => s.id === activeSessionIdRef.current)?.cwd ?? '',
+    [],
+  )
 
   // 宠物窗口意图 → 主窗口执行（终端写入 / AI 发送 / 读取中间栏草稿）
   useEffect(() => {
@@ -1607,23 +1608,21 @@ export default function App() {
 
   const handleBrowseUrl = useCallback((url: string) => {
     if (!url) return
-    const cwd = activeSessionCwdRef.current ?? ''
+    const cwd = activeCwdNow()
     setBrowserStartUrl(cwd, url)
     const entry = browserByCwdRef.current[cwd]
     if (entry) {
       browserViewRefs.current[cwd]?.loadURL(url)
-      if (entry.docked) setBrowserDockNonce(n => n + 1)
-      else setCenterView('browser')
+      if (!entry.docked) setCenterView('browser')
       return
     }
     if (rightPanelWideRef.current && cwd) {
       setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: true } }))
-      setBrowserDockNonce(n => n + 1)
       return
     }
     setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: false } }))
     setCenterView('browser')
-  }, [])
+  }, [activeCwdNow])
 
   const handleOpenFileInBrowser = useCallback((fullPath: string) => {
     handleBrowseUrl(toFileUrl(fullPath))
@@ -1654,8 +1653,8 @@ export default function App() {
       return !!sid && sessionsRef.current.find(s => s.id === sid)?.kind === 'gui' && rightPanelWideRef.current
     }
     ;(window as any).__vibeBrowse = handleBrowseUrl
-    ;(window as any).__vibeIsBrowserOpen = () => !!browserByCwdRef.current[activeSessionCwdRef.current ?? ''] || centerViewRef.current === 'browser'
-  }, [waitDraftIdle, sendDraftLine, handleBrowseUrl])
+    ;(window as any).__vibeIsBrowserOpen = () => !!browserByCwdRef.current[activeCwdNow()] || centerViewRef.current === 'browser'
+  }, [waitDraftIdle, sendDraftLine, handleBrowseUrl, activeCwdNow])
 
   // 加入对话：AI 对话场景 + 右栏宽栏时直接落 AiTab 输入框（宠物气泡那边按同一判据跳过）
   useEffect(() => {
@@ -3369,8 +3368,8 @@ export default function App() {
     })
     delete browserViewRefs.current[cwd]
     restoreBrowserDockWidth(cwd)
-    if (cwd === (activeSessionCwdRef.current ?? '') && centerViewRef.current === 'browser') setCenterView('terminal')
-  }, [restoreBrowserDockWidth])
+    if (cwd === activeCwdNow() && centerViewRef.current === 'browser') setCenterView('terminal')
+  }, [restoreBrowserDockWidth, activeCwdNow])
 
   // 关掉某 cwd 的最后一个会话时，一并释放它的浏览器实例
   useEffect(() => {
@@ -3386,18 +3385,16 @@ export default function App() {
     if (next) {
       if (centerViewRef.current === 'browser') setCenterView('terminal')
       widenBrowserDock(cwd)
-      setBrowserDockNonce(n => n + 1)
     } else {
       restoreBrowserDockWidth(cwd)
-      if (cwd === (activeSessionCwdRef.current ?? '')) setCenterView('browser')
+      if (cwd === activeCwdNow()) setCenterView('browser')
     }
-  }, [widenBrowserDock, restoreBrowserDockWidth])
+  }, [widenBrowserDock, restoreBrowserDockWidth, activeCwdNow])
 
   const openBrowserDocked = useCallback((cwd: string) => {
     setBrowserByCwd(prev => ({ ...prev, [cwd]: { docked: true } }))
     if (centerViewRef.current === 'browser') setCenterView('terminal')
     widenBrowserDock(cwd)
-    setBrowserDockNonce(n => n + 1)
   }, [widenBrowserDock])
 
   // 打开网页调试：默认跟随右栏模式（宽栏则落右栏覆盖 Nga tab，否则落中栏），之后仍可在浏览器内手动切换停靠
@@ -3405,8 +3402,7 @@ export default function App() {
     const cwd = activeSessionCwd ?? ''
     const entry = browserByCwdRef.current[cwd]
     if (entry) {
-      if (entry.docked) setBrowserDockNonce(n => n + 1)
-      else setCenterView('browser')
+      if (!entry.docked) setCenterView('browser')
       return
     }
     if (isRightPanelWide(rightPanelCollapsed, rightPanelWidth) && cwd) {
@@ -3424,7 +3420,7 @@ export default function App() {
 
   useEffect(() => {
     const handler = window.api.onBrowserOpen((data) => {
-      const active = activeSessionCwdRef.current ?? ''
+      const active = activeCwdNow()
       const cwd = data?.cwd ?? active
       if (data?.url) {
         setBrowserStartUrl(cwd, data.url)
@@ -3451,7 +3447,7 @@ export default function App() {
       handleOpenBrowserRight()
     })
     return () => window.api.removeBrowserOpenListener(handler)
-  }, [handleOpenBrowserRight, rightPanelCollapsed, rightPanelWidth])
+  }, [handleOpenBrowserRight, rightPanelCollapsed, rightPanelWidth, activeCwdNow])
 
   const handleRefreshGit = useCallback(async () => {
     setGitRefreshKey(k => k + 1)
@@ -4366,7 +4362,6 @@ export default function App() {
             contentOverlayKind={overlayKind}
             brushActive={brushActive}
             browserDocked={browserDocked}
-            browserDockNonce={browserDockNonce}
             browserDockContent={dockedBrowserCwds.length ? dockedBrowserCwds.map(cwd => (
               <div key={cwd} className="flex-1 min-h-0 flex flex-col" style={{ display: cwd === activeBrowserCwd ? 'flex' : 'none' }}>
                 <BrowserView
